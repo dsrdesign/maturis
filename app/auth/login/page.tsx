@@ -7,62 +7,42 @@ export default function LoginPage() {
   const router = useRouter();
 
   return (
-    <div className="flex h-screen flex-col lg:flex-row">
-      
-      {/* Colonne gauche */}
-      <div className="flex-1 p-6 md:p-10 flex items-center justify-center">
-        <div className="flex bg-[#282FBA]/5 justify-center rounded-lg p-8 md:p-10 w-full box-border max-w-lg h-full md:h-auto">
-          <div className="flex flex-col justify-between w-full box-border h-full md:h-auto">
-            
-            {/* Contenu haut */}
-            <div className="flex flex-col gap-5">
-              <h1 className="text-4xl font-bold">Maturis</h1>
-              <hr className="border-t border-gray-300" />
-              <p className="text-2xl">
-                Mesurez et faites progresser la maturité numérique de votre organisation
-              </p>
+    <div className="min-h-screen flex items-center justify-center py-12 px-4 bg-gradient-to-b from-[#F8FAFF] to-white">
+      <div className="app-container w-full max-w-4xl grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch">
+        <div className="glass p-10 flex flex-col justify-between card-hover">
+          <div>
+            <h1 className="text-4xl font-extrabold mb-3">Maturis</h1>
+            <p className="text-gray-600 text-lg mb-6">Mesurez et faites progresser la maturité numérique de votre organisation</p>
 
+            <div className="flex flex-col gap-4">
               <input
-                className="border border-gray-400 rounded-lg p-3"
+                className="soft-input"
                 placeholder="Entrez votre adresse email"
               />
 
               <input
                 type="password"
-                className="border border-gray-400 rounded-lg p-3"
+                className="soft-input"
                 placeholder="Entrez votre mot de passe"
               />
 
-              <div className="flex gap-2 text-sm">
-                <span>Vous n'avez pas de compte ?</span>
-                <button
-                  onClick={() => router.push("/auth/register")}
-                  className="text-blue-600 hover:underline"
-                >
-                  Inscrivez-vous
-                </button>
+              <div className="flex items-center justify-between text-sm text-gray-500">
+                <div>Vous n&apos;avez pas de compte ? <button onClick={() => router.push("/auth/register")} className="text-[var(--accent)] font-medium">Inscrivez-vous</button></div>
+                <button className="text-[var(--accent)]">Mot de passe oublié ?</button>
               </div>
             </div>
+          </div>
 
-            {/* Contenu bas */}
-            <div className="flex flex-col mt-6">
-              <button onClick={() => router.push("/")} className="bg-[#282FBA] text-white p-3 rounded-lg">
-                Se connecter
-              </button>
-            </div>
-
+          <div className="mt-6">
+            <button onClick={() => router.push("/organizations")} className="w-full btn-gradient text-white py-3 rounded-xl font-medium">Se connecter</button>
           </div>
         </div>
-      </div>
 
-      {/* Colonne droite (visible seulement en desktop) */}
-      <div className="flex-1 relative hidden lg:block">
-        <Image
-          src="/login.svg"
-          alt="Login Illustration"
-          fill
-          className="object-contain p-20"
-        />
+        <div className="hidden lg:flex items-center justify-center">
+          <div className="w-full h-full flex items-center justify-center">
+            <Image src="/login.svg" alt="Login Illustration" width={520} height={520} className="object-contain" />
+          </div>
+        </div>
       </div>
     </div>
   );
