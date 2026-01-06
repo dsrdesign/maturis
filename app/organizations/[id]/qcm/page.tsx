@@ -65,6 +65,9 @@ export default function QcmPage() {
   }
 
   function submit() {
+    // Vérifier que l'organisation existe
+    if (!org) return;
+    
     // Vérifier que toutes les questions sont répondues
     if (Object.keys(answers).length < totalQuestions) {
       alert('Veuillez répondre à toutes les questions avant de soumettre.');
@@ -72,7 +75,14 @@ export default function QcmPage() {
     }
 
     // Calculer les scores par domaine
-    const domainScores: Record<string, number> = {};
+    const domainScores: { EDM: number; APO: number; BAI: number; DSS: number; MEA: number } = {
+      EDM: 0,
+      APO: 0,
+      BAI: 0,
+      DSS: 0,
+      MEA: 0
+    };
+    
     for (const domain of domains) {
       const vals: number[] = [];
       for (const q of domain.questions) {
@@ -81,17 +91,19 @@ export default function QcmPage() {
         vals.push(normalizeToFive(v, q.scaleMax));
       }
       const avg = vals.length ? (vals.reduce((a, b) => a + b, 0) / vals.length) : 0;
-      domainScores[domain.code] = Math.round(avg * 100) / 100;
+      domainScores[domain.code as keyof typeof domainScores] = Math.round(avg * 100) / 100;
     }
 
     // Calculer le score global
-    const global = computeGlobalScore(domainScores as any, org.sector) || 0;
+    const global = computeGlobalScore(domainScores, org.sector) || 0;
     const percent = Math.round((global / 5) * 100);
 
-    // Créer un nouvel audit
-    const date = new Date().toISOString().slice(0, 10);
+    // Créer un nouvel audit avec un ID basé sur le contenu
+    const dateNow = new Date();
+    const date = dateNow.toISOString().slice(0, 10);
+    const auditId = `qcm-${date}-${Object.keys(answers).length}`;
     const newAudit = {
-      id: `qcm-${Date.now()}`,
+      id: auditId,
       date,
       score: percent,
       title: 'Analyse COBIT complète'
@@ -99,7 +111,7 @@ export default function QcmPage() {
 
     // Mettre à jour l'organisation dans le store
     updateOrganization(id, {
-      domainScores: domainScores as any,
+      domainScores,
       score: percent,
       lastAudit: date,
       audits: [newAudit, ...(org.audits || [])]
@@ -325,7 +337,7 @@ export default function QcmPage() {
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
-              Terminer l'analyse
+              Terminer l&apos;analyse
             </button>
           )}
         </div>
