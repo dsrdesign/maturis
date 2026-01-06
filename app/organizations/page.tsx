@@ -87,7 +87,7 @@ export default function OrganizationsPage() {
             <p className="text-sm text-gray-500 mt-1">Bienvenue, {user.name}</p>
           </div>
           <div className="flex items-center gap-4">
-            <button onClick={() => router.push('/resources')} className="px-3 py-2 rounded bg-gray-50">Ressources</button>
+            {/* <button onClick={() => router.push('/resources')} className="px-3 py-2 rounded bg-gray-50">Ressources</button> */}
             <UserMenu />
           </div>
         </div>

@@ -51,7 +51,7 @@ export default function UserMenu() {
             >
               📊 Mes organisations
             </button>
-            <button
+            {/* <button
               onClick={() => {
                 setShowMenu(false);
                 router.push("/resources");
@@ -59,7 +59,7 @@ export default function UserMenu() {
               className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50"
             >
               📚 Ressources
-            </button>
+            </button> */}
             <div className="border-t my-2" />
             <button
               onClick={handleLogout}
