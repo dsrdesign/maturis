@@ -14,7 +14,7 @@ export default function OrganizationsPage() {
   const [form, setForm] = useState({
     name: '',
     description: '',
-    country: 'France',
+    country: 'Cameroun',
     city: '',
     employees: '',
     revenue: '',
@@ -56,7 +56,7 @@ export default function OrganizationsPage() {
     setForm({
       name: '',
       description: '',
-      country: 'France',
+      country: 'Cameroun',
       city: '',
       employees: '',
       revenue: '',
@@ -201,11 +201,17 @@ export default function OrganizationsPage() {
                     onChange={(e) => setForm(f => ({...f, country: e.target.value}))} 
                     className="border rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
-                    <option value="France">France</option>
-                    <option value="Belgique">Belgique</option>
-                    <option value="Suisse">Suisse</option>
-                    <option value="Luxembourg">Luxembourg</option>
-                    <option value="Canada">Canada</option>
+                    <option value="Cameroun">Cameroun</option>
+                    <option value="Sénégal">Sénégal</option>
+                    <option value="Côte d'Ivoire">Côte d'Ivoire</option>
+                    <option value="Gabon">Gabon</option>
+                    <option value="Congo">Congo</option>
+                    <option value="Mali">Mali</option>
+                    <option value="Burkina Faso">Burkina Faso</option>
+                    <option value="Bénin">Bénin</option>
+                    <option value="Togo">Togo</option>
+                    <option value="Niger">Niger</option>
+                    <option value="Guinée">Guinée</option>
                     <option value="Autre">Autre</option>
                   </select>
                   <input 
