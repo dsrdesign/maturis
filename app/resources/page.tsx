@@ -1,6 +1,8 @@
 "use client";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { useAuth } from "../lib/AuthContext";
+import { useEffect } from "react";
+import UserMenu from "@/components/UserMenu";
 
 const docs = [
   { id: 'cad', name: 'Cadrage (PDF)', href: '/CADRAGE.pdf' },
@@ -10,13 +12,34 @@ const docs = [
 
 export default function ResourcesPage(){
   const router = useRouter();
+  const { user, isLoading } = useAuth();
+
+  // Rediriger vers login si non connecté
+  useEffect(() => {
+    if (!isLoading && !user) {
+      router.push("/auth/login");
+    }
+  }, [user, isLoading, router]);
+
+  if (isLoading || !user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Chargement...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen py-12">
       <div className="app-container px-6">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-3xl font-bold">Ressources & documentation</h1>
-          <div>
-            <button onClick={() => router.push('/')} className="px-4 py-2 rounded bg-gray-100">Retour</button>
+          <div className="flex items-center gap-4">
+            <button onClick={() => router.push('/organizations')} className="px-4 py-2 rounded bg-gray-100">Retour</button>
+            <UserMenu />
           </div>
         </div>
 

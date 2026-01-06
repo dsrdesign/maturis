@@ -1,16 +1,36 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { organizations as orgMocks } from "../lib/mockData";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { computeGlobalScore } from "../lib/score";
+import { useAuth } from "../lib/AuthContext";
+import { useOrganizations } from "../lib/store";
+import UserMenu from "@/components/UserMenu";
 
 export default function OrganizationsPage() {
   const router = useRouter();
-  const [organizations, setOrganizations] = useState(orgMocks);
+  const { user, isLoading } = useAuth();
+  const { filteredOrganizations, addOrganization } = useOrganizations();
   const [showModal, setShowModal] = useState(false);
-  const [form, setForm] = useState({ name: '', description: '', sector: 'bank' });
+  const [form, setForm] = useState({
+    name: '',
+    description: '',
+    country: 'France',
+    city: '',
+    employees: '',
+    revenue: '',
+    creationDate: '',
+    legalForm: 'SAS',
+    sector: 'bank'
+  });
 
-  function addOrganization(e: React.FormEvent) {
+  // Rediriger vers login si non connecté
+  useEffect(() => {
+    if (!isLoading && !user) {
+      router.push("/auth/login");
+    }
+  }, [user, isLoading, router]);
+
+  function handleAddOrganization(e: React.FormEvent) {
     e.preventDefault();
     const id = `org-${Date.now()}`;
     const domainScores = { EDM: 0, APO: 0, BAI: 0, DSS: 0, MEA: 0 };
@@ -19,25 +39,56 @@ export default function OrganizationsPage() {
       id,
       name: form.name,
       description: form.description,
+      country: form.country,
+      city: form.city,
+      employees: parseInt(form.employees) || 0,
+      revenue: parseFloat(form.revenue) || 0,
+      creationDate: form.creationDate,
+      legalForm: form.legalForm,
+      sector: form.sector,
       score: Math.round((sg/5)*100),
       lastAudit: '—',
-      sector: form.sector,
       domainScores,
       audits: [],
     };
-    setOrganizations((s) => [newOrg, ...s]);
+    addOrganization(newOrg);
     setShowModal(false);
-    setForm({ name: '', description: '', sector: 'bank' });
+    setForm({
+      name: '',
+      description: '',
+      country: 'France',
+      city: '',
+      employees: '',
+      revenue: '',
+      creationDate: '',
+      legalForm: 'SAS',
+      sector: 'bank'
+    });
+  }
+
+  // Afficher un loader pendant la vérification de l'authentification
+  if (isLoading || !user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Chargement...</p>
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="min-h-screen py-12">
       <div className="app-container px-6">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-3xl font-bold">Mes organisations</h1>
+          <div>
+            <h1 className="text-3xl font-bold">Mes organisations</h1>
+            <p className="text-sm text-gray-500 mt-1">Bienvenue, {user.name}</p>
+          </div>
           <div className="flex items-center gap-4">
             <button onClick={() => router.push('/resources')} className="px-3 py-2 rounded bg-gray-50">Ressources</button>
-            <button onClick={() => router.push("/")} className="px-4 py-2 rounded-lg bg-gray-100">Retour Dashboard</button>
+            <UserMenu />
           </div>
         </div>
 
@@ -51,27 +102,50 @@ export default function OrganizationsPage() {
             <button onClick={() => setShowModal(true)} className="w-full btn-gradient text-white py-3 rounded-xl">+ Ajouter</button>
           </div>
 
-          {organizations.map((org) => (
+          {filteredOrganizations.map((org) => (
             <div key={org.id} className="bg-white card-soft p-6">
-              <h3 className="text-lg font-semibold">{org.name}</h3>
-              <p className="text-sm text-gray-500 my-2">{org.description}</p>
-
-              <div className="flex items-center justify-between mt-4">
-                <div>
-                  <p className="text-xs text-gray-400">Dernier audit</p>
-                  <p className="text-sm font-medium">{org.lastAudit}</p>
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex-1">
+                  <h3 className="text-lg font-semibold">{org.name}</h3>
+                  <p className="text-xs text-gray-400 mt-1">
+                    {org.city && org.country ? `📍 ${org.city}, ${org.country}` : ''}
+                  </p>
                 </div>
-
                 <div className="text-right">
                   <p className="text-xs text-gray-400">Score</p>
                   <p className="text-lg font-bold text-[#3B6BFF]">{org.score}%</p>
                 </div>
               </div>
 
-                <div className="flex gap-3 mt-6">
-                  <button onClick={() => router.push(`/organizations/${org.id}`)} className="px-4 py-2 rounded-lg bg-gray-50 hover:bg-gray-100">Voir le dashboard</button>
+              <p className="text-sm text-gray-500 mb-3">{org.description}</p>
 
-                  <button onClick={() => router.push(`/organizations/${org.id}/qcm`)} className="px-4 py-2 rounded-lg btn-gradient text-white">Démarrer une analyse</button>
+              {/* Nouvelles informations */}
+              <div className="grid grid-cols-2 gap-2 mb-3 text-xs">
+                {org.employees && (
+                  <div className="bg-gray-50 p-2 rounded">
+                    <p className="text-gray-500">Employés</p>
+                    <p className="font-medium">{org.employees}</p>
+                  </div>
+                )}
+                {org.legalForm && (
+                  <div className="bg-gray-50 p-2 rounded">
+                    <p className="text-gray-500">Forme juridique</p>
+                    <p className="font-medium">{org.legalForm}</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between pt-3 border-t">
+                <div>
+                  <p className="text-xs text-gray-400">Dernier audit</p>
+                  <p className="text-sm font-medium">{org.lastAudit}</p>
+                </div>
+              </div>
+
+                <div className="flex gap-3 mt-4">
+                  <button onClick={() => router.push(`/organizations/${org.id}`)} className="flex-1 px-3 py-2 text-sm rounded-lg bg-gray-50 hover:bg-gray-100">Voir</button>
+
+                  <button onClick={() => router.push(`/organizations/${org.id}/qcm`)} className="flex-1 px-3 py-2 text-sm rounded-lg btn-gradient text-white">Analyser</button>
                 </div>
             </div>
           ))}
@@ -82,21 +156,142 @@ export default function OrganizationsPage() {
 
       {/* Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center">
-          <div className="bg-white rounded-xl p-6 w-full max-w-md">
-            <h3 className="text-lg font-semibold mb-3">Nouvelle organisation</h3>
-            <form onSubmit={addOrganization} className="flex flex-col gap-3">
-              <input required value={form.name} onChange={(e) => setForm(f => ({...f, name: e.target.value}))} placeholder="Nom de l'organisation" className="border rounded-lg p-3" />
-              <input required value={form.description} onChange={(e) => setForm(f => ({...f, description: e.target.value}))} placeholder="Description courte" className="border rounded-lg p-3" />
-              <select value={form.sector} onChange={(e) => setForm(f => ({...f, sector: e.target.value}))} className="border rounded-lg p-3">
-                <option value="bank">Banque & services financiers</option>
-                <option value="health">Santé & hôpitaux</option>
-                <option value="industry">Industrie & fabrication</option>
-              </select>
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <h3 className="text-2xl font-semibold mb-4">Nouvelle organisation</h3>
+            <form onSubmit={handleAddOrganization} className="flex flex-col gap-4">
+              
+              {/* Section Informations générales */}
+              <div className="border-b pb-4">
+                <h4 className="font-medium text-gray-700 mb-3">Informations générales</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <input 
+                    required 
+                    value={form.name} 
+                    onChange={(e) => setForm(f => ({...f, name: e.target.value}))} 
+                    placeholder="Nom de l'organisation *" 
+                    className="border rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+                  />
+                  <select 
+                    value={form.sector} 
+                    onChange={(e) => setForm(f => ({...f, sector: e.target.value}))} 
+                    className="border rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="bank">Banque & services financiers</option>
+                    <option value="health">Santé & hôpitaux</option>
+                    <option value="industry">Industrie & fabrication</option>
+                  </select>
+                </div>
+                <textarea 
+                  required 
+                  value={form.description} 
+                  onChange={(e) => setForm(f => ({...f, description: e.target.value}))} 
+                  placeholder="Description courte *" 
+                  className="border rounded-lg p-3 w-full mt-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+                  rows={2}
+                />
+              </div>
 
-              <div className="flex items-center gap-3 mt-3">
-                <button type="submit" className="flex-1 bg-[#3B6BFF] text-white py-2 rounded-lg">Créer</button>
-                <button type="button" onClick={() => setShowModal(false)} className="flex-1 bg-gray-100 py-2 rounded-lg">Annuler</button>
+              {/* Section Localisation */}
+              <div className="border-b pb-4">
+                <h4 className="font-medium text-gray-700 mb-3">Localisation</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <select 
+                    value={form.country} 
+                    onChange={(e) => setForm(f => ({...f, country: e.target.value}))} 
+                    className="border rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="France">France</option>
+                    <option value="Belgique">Belgique</option>
+                    <option value="Suisse">Suisse</option>
+                    <option value="Luxembourg">Luxembourg</option>
+                    <option value="Canada">Canada</option>
+                    <option value="Autre">Autre</option>
+                  </select>
+                  <input 
+                    required 
+                    value={form.city} 
+                    onChange={(e) => setForm(f => ({...f, city: e.target.value}))} 
+                    placeholder="Ville *" 
+                    className="border rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+                  />
+                </div>
+              </div>
+
+              {/* Section Données économiques */}
+              <div className="border-b pb-4">
+                <h4 className="font-medium text-gray-700 mb-3">Données économiques</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm text-gray-600 mb-1">Nombre d&apos;employés *</label>
+                    <input 
+                      required 
+                      type="number" 
+                      min="1"
+                      value={form.employees} 
+                      onChange={(e) => setForm(f => ({...f, employees: e.target.value}))} 
+                      placeholder="Ex: 50" 
+                      className="border rounded-lg p-3 w-full focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-600 mb-1">Chiffre d&apos;affaires (€) *</label>
+                    <input 
+                      required 
+                      type="number" 
+                      min="0"
+                      step="0.01"
+                      value={form.revenue} 
+                      onChange={(e) => setForm(f => ({...f, revenue: e.target.value}))} 
+                      placeholder="Ex: 1000000" 
+                      className="border rounded-lg p-3 w-full focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Section Juridique */}
+              <div className="pb-4">
+                <h4 className="font-medium text-gray-700 mb-3">Informations juridiques</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm text-gray-600 mb-1">Date de création *</label>
+                    <input 
+                      required 
+                      type="date" 
+                      value={form.creationDate} 
+                      onChange={(e) => setForm(f => ({...f, creationDate: e.target.value}))} 
+                      className="border rounded-lg p-3 w-full focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-600 mb-1">Forme juridique *</label>
+                    <select 
+                      value={form.legalForm} 
+                      onChange={(e) => setForm(f => ({...f, legalForm: e.target.value}))} 
+                      className="border rounded-lg p-3 w-full focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="SAS">SAS - Société par Actions Simplifiée</option>
+                      <option value="SARL">SARL - Société à Responsabilité Limitée</option>
+                      <option value="SA">SA - Société Anonyme</option>
+                      <option value="SNC">SNC - Société en Nom Collectif</option>
+                      <option value="EURL">EURL - Entreprise Unipersonnelle à Responsabilité Limitée</option>
+                      <option value="SASU">SASU - Société par Actions Simplifiée Unipersonnelle</option>
+                      <option value="Association">Association</option>
+                      <option value="Collectivité territoriale">Collectivité territoriale</option>
+                      <option value="Autre">Autre</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 mt-3 pt-3 border-t">
+                <button type="submit" className="flex-1 bg-[#3B6BFF] hover:bg-[#2D5AE5] text-white py-3 rounded-lg font-medium transition-colors">
+                  Créer l&apos;organisation
+                </button>
+                <button type="button" onClick={() => setShowModal(false)} className="flex-1 bg-gray-100 hover:bg-gray-200 py-3 rounded-lg font-medium transition-colors">
+                  Annuler
+                </button>
               </div>
             </form>
           </div>

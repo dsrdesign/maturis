@@ -1,6 +1,6 @@
 "use client";
 import { useRouter, useParams } from "next/navigation";
-import { organizations } from "../../lib/mockData";
+import { useOrganizations } from "../../lib/store";
 import { computeGlobalScore, cobitLevelFromScore, recommendationsForDomain } from "../../lib/score";
 import dynamic from 'next/dynamic';
 const RadarChart = dynamic(() => import('../../../components/RadarChart'), { ssr: false });
@@ -10,7 +10,8 @@ export default function OrganizationDashboard() {
   const router = useRouter();
   const params = useParams();
   const id = params?.id as string;
-  const org = organizations.find((o) => o.id === id);
+  const { getOrganizationById } = useOrganizations();
+  const org = getOrganizationById(id);
 
   if (!org) return <div className="p-6">Organisation non trouvée</div>;
 
@@ -49,18 +50,70 @@ export default function OrganizationDashboard() {
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-3xl font-bold">{org.name}</h1>
           <div className="flex items-center gap-4">
-            <button onClick={() => router.push('/organizations')} className="px-3 py-2 rounded bg-gray-100">Retour</button>
-            <button onClick={() => router.push('/')} className="px-3 py-2 rounded bg-[#3B6BFF] text-white">Main</button>
+            <button onClick={() => router.push('/organizations')} className="px-3 py-2 rounded bg-gray-100 hover:bg-gray-200 transition-colors">
+              Retour
+            </button>
+            <button onClick={() => router.push(`/organizations/${org.id}/qcm`)} className="px-4 py-2 rounded-lg btn-gradient text-white">
+              Démarrer une nouvelle analyse
+            </button>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
-          <div className="bg-white card-soft p-6">
-            <h3 className="text-lg font-semibold mb-2">Résumé</h3>
-            <p className="text-sm text-gray-600 mb-4">{org.description}</p>
-            <p className="text-gray-500">Dernier audit: {org.lastAudit}</p>
-            <div className="mt-4">
-              <div className="text-sm text-gray-400">Scores par domaine (mocks)</div>
+        <div className="flex flex-col gap-6">
+          {/* Informations de l'organisation */}
+          <div className="bg-white card-soft p-6 w-full">
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <h3 className="text-2xl font-semibold mb-1">{org.name}</h3>
+                <p className="text-sm text-gray-600">{org.description}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-gray-400">Score global</p>
+                <p className="text-3xl font-bold text-[#3B6BFF]">{org.score}%</p>
+              </div>
+            </div>
+
+            {/* Nouvelles informations détaillées */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
+              <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-4 rounded-lg">
+                <p className="text-xs text-blue-600 font-medium mb-1">📍 Localisation</p>
+                <p className="text-sm font-semibold text-gray-800">{org.city || 'N/A'}</p>
+                <p className="text-xs text-gray-600">{org.country || 'N/A'}</p>
+              </div>
+
+              <div className="bg-gradient-to-br from-green-50 to-green-100 p-4 rounded-lg">
+                <p className="text-xs text-green-600 font-medium mb-1">👥 Employés</p>
+                <p className="text-sm font-semibold text-gray-800">{org.employees || 'N/A'}</p>
+                <p className="text-xs text-gray-600">personnes</p>
+              </div>
+
+              <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-4 rounded-lg">
+                <p className="text-xs text-purple-600 font-medium mb-1">💼 Chiffre d&apos;affaires</p>
+                <p className="text-sm font-semibold text-gray-800">
+                  {org.revenue ? `${(org.revenue / 1000000).toFixed(1)}M €` : 'N/A'}
+                </p>
+                <p className="text-xs text-gray-600">annuel</p>
+              </div>
+
+              <div className="bg-gradient-to-br from-orange-50 to-orange-100 p-4 rounded-lg">
+                <p className="text-xs text-orange-600 font-medium mb-1">⚖️ Forme juridique</p>
+                <p className="text-sm font-semibold text-gray-800">{org.legalForm || 'N/A'}</p>
+                <p className="text-xs text-gray-600">
+                  {org.creationDate ? `Créée en ${new Date(org.creationDate).getFullYear()}` : ''}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-6 pt-6 border-t">
+              <p className="text-sm text-gray-500">
+                <span className="font-medium">Dernier audit:</span> {org.lastAudit}
+              </p>
+            </div>
+          </div>
+
+          {/* Scores par domaine */}
+          <div className="bg-white card-soft p-6 w-full">
+            <h3 className="text-lg font-semibold mb-4">Scores par domaine COBIT</h3>
               <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                 {Object.entries(org.domainScores || {}).map(([k, v]) => (
                   <div key={k} className="flex items-center gap-4 p-4 sm:p-5 rounded-xl border border-gray-100 bg-white/80 shadow-md min-h-[72px]">
@@ -82,15 +135,11 @@ export default function OrganizationDashboard() {
                   {computeGlobalScore(org.domainScores || {EDM:0,APO:0,BAI:0,DSS:0,MEA:0}, org.sector)} / 5
                 </div>
                 <div className="text-sm text-gray-600">Niveau COBIT: {cobitLevelFromScore(computeGlobalScore(org.domainScores || {EDM:0,APO:0,BAI:0,DSS:0,MEA:0}, org.sector))}</div>
-
-                <div className="mt-4">
-                  <button onClick={() => router.push(`/organizations/${org.id}/qcm`)} className="px-4 py-2 rounded-lg btn-gradient text-white">Démarrer une nouvelle analyse</button>
-                </div>
               </div>
-            </div>
           </div>
 
-          <div className="lg:col-span-2 grid grid-cols-1 gap-6">
+          {/* Historique et Radar - Section divisée en 2 colonnes */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full">
             <div className="bg-white card-soft p-6">
               <h3 className="text-lg font-semibold mb-4">Historique des audits</h3>
               <AnimatedList items={(org.audits || []).map(a => `${a.date} — ${a.title} (${a.score}%)`)} />
