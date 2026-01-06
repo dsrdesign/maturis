@@ -23,5 +23,12 @@ export type Organization = {
     date: string;
     score: number;
     title: string;
+    domainScores?: {
+      EDM: number;
+      APO: number;
+      BAI: number;
+      DSS: number;
+      MEA: number;
+    };
   }>;
 };

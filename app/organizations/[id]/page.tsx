@@ -1,10 +1,32 @@
 "use client";
 import { useRouter, useParams } from "next/navigation";
+import { useState, useEffect } from "react";
 import { useOrganizations } from "../../lib/store";
-import { computeGlobalScore, cobitLevelFromScore, recommendationsForDomain } from "../../lib/score";
+import { computeGlobalScore, cobitLevelFromScore } from "../../lib/score";
 import dynamic from 'next/dynamic';
 const RadarChart = dynamic(() => import('../../../components/RadarChart'), { ssr: false });
 const AnimatedList = dynamic(() => import('../../../components/AnimatedList'), { ssr: false });
+
+type AIRecommendation = {
+  domain: string;
+  domainName: string;
+  score: number;
+  priority: 'critical' | 'high' | 'medium' | 'low';
+  actions: Array<{
+    title: string;
+    description: string;
+    impact: string;
+    effort: 'low' | 'medium' | 'high';
+    timeline: string;
+  }>;
+  quickWins: string[];
+};
+
+type AIRecommendationsResponse = {
+  recommendations: AIRecommendation[];
+  summary: string;
+  maturityAnalysis: string;
+};
 
 export default function OrganizationDashboard() {
   const router = useRouter();
@@ -12,8 +34,145 @@ export default function OrganizationDashboard() {
   const id = params?.id as string;
   const { getOrganizationById } = useOrganizations();
   const org = getOrganizationById(id);
+  
+  const [aiRecommendations, setAiRecommendations] = useState<AIRecommendationsResponse | null>(null);
+  const [isLoadingAI, setIsLoadingAI] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  
+  // États pour la comparaison d'audits
+  const [selectedAudit1, setSelectedAudit1] = useState<string | null>(null);
+  const [selectedAudit2, setSelectedAudit2] = useState<string | null>(null);
+  const [showComparison, setShowComparison] = useState(false);
+
+  // Charger les recommandations IA au chargement de la page
+  useEffect(() => {
+    if (org && org.domainScores) {
+      fetchAIRecommendations();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [org?.id]);
+
+  const fetchAIRecommendations = async () => {
+    if (!org) return;
+    
+    setIsLoadingAI(true);
+    setAiError(null);
+    
+    try {
+      const response = await fetch('/api/ai/recommendations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          organizationContext: {
+            name: org.name,
+            sector: org.sector || 'general',
+            size: org.employees ? (org.employees > 500 ? 'large' : org.employees > 50 ? 'medium' : 'small') : 'medium',
+            description: org.description,
+          },
+          domainScores: org.domainScores || { EDM: 0, APO: 0, BAI: 0, DSS: 0, MEA: 0 },
+          globalScore: org.score,
+        }),
+      });
+
+      if (!response.ok) throw new Error('Erreur API');
+      
+      const data = await response.json();
+      setAiRecommendations(data);
+    } catch {
+      setAiError('Impossible de générer les recommandations IA');
+    } finally {
+      setIsLoadingAI(false);
+    }
+  };
 
   if (!org) return <div className="p-6">Organisation non trouvée</div>;
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'critical': return 'bg-red-100 text-red-700 border-red-200';
+      case 'high': return 'bg-orange-100 text-orange-700 border-orange-200';
+      case 'medium': return 'bg-yellow-100 text-yellow-700 border-yellow-200';
+      case 'low': return 'bg-green-100 text-green-700 border-green-200';
+      default: return 'bg-gray-100 text-gray-700 border-gray-200';
+    }
+  };
+
+  const getPriorityLabel = (priority: string) => {
+    switch (priority) {
+      case 'critical': return '🔴 Critique';
+      case 'high': return '🟠 Haute';
+      case 'medium': return '🟡 Moyenne';
+      case 'low': return '🟢 Basse';
+      default: return priority;
+    }
+  };
+
+  const getEffortBadge = (effort: string) => {
+    switch (effort) {
+      case 'low': return '⚡ Facile';
+      case 'medium': return '⏱️ Modéré';
+      case 'high': return '🏗️ Important';
+      default: return effort;
+    }
+  };
+
+  // Fonctions pour la comparaison d'audits
+  const getAuditById = (auditId: string) => {
+    return org?.audits?.find(a => a.date === auditId);
+  };
+
+  const getEvolutionColor = (diff: number) => {
+    if (diff > 0) return 'text-green-600';
+    if (diff < 0) return 'text-red-600';
+    return 'text-gray-500';
+  };
+
+  const getEvolutionIcon = (diff: number) => {
+    if (diff > 0) return '📈';
+    if (diff < 0) return '📉';
+    return '➡️';
+  };
+
+  const getEvolutionBadge = (diff: number) => {
+    if (diff > 0) return 'bg-green-100 text-green-700 border-green-200';
+    if (diff < 0) return 'bg-red-100 text-red-700 border-red-200';
+    return 'bg-gray-100 text-gray-600 border-gray-200';
+  };
+
+  const calculateComparison = () => {
+    if (!selectedAudit1 || !selectedAudit2 || !org?.audits) return null;
+    
+    const audit1 = getAuditById(selectedAudit1);
+    const audit2 = getAuditById(selectedAudit2);
+    
+    if (!audit1 || !audit2) return null;
+
+    // Déterminer l'ordre chronologique (audit1 = plus ancien, audit2 = plus récent)
+    const date1 = new Date(audit1.date);
+    const date2 = new Date(audit2.date);
+    const [olderAudit, newerAudit] = date1 < date2 ? [audit1, audit2] : [audit2, audit1];
+
+    const scoreDiff = newerAudit.score - olderAudit.score;
+    
+    // Calculer les différences par domaine si disponibles
+    type DomainKey = 'EDM' | 'APO' | 'BAI' | 'DSS' | 'MEA';
+    const domainDiffs: Record<string, number> = {};
+    if (olderAudit.domainScores && newerAudit.domainScores) {
+      (Object.keys(olderAudit.domainScores) as DomainKey[]).forEach(domain => {
+        domainDiffs[domain] = (newerAudit.domainScores?.[domain] || 0) - (olderAudit.domainScores?.[domain] || 0);
+      });
+    }
+
+    return {
+      older: olderAudit,
+      newer: newerAudit,
+      scoreDiff,
+      domainDiffs,
+      daysBetween: Math.round((new Date(newerAudit.date).getTime() - new Date(olderAudit.date).getTime()) / (1000 * 60 * 60 * 24))
+    };
+  };
+
+  const comparison = showComparison ? calculateComparison() : null;
 
   const iconFor = (key: string) => {
     switch (key) {
@@ -143,6 +302,54 @@ export default function OrganizationDashboard() {
             <div className="bg-white card-soft p-6">
               <h3 className="text-lg font-semibold mb-4">Historique des audits</h3>
               <AnimatedList items={(org.audits || []).map(a => `${a.date} — ${a.title} (${a.score}%)`)} />
+              
+              {/* Section de sélection pour comparaison */}
+              {org.audits && org.audits.length >= 2 && (
+                <div className="mt-6 pt-4 border-t">
+                  <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                    <span>📊</span> Comparer deux analyses
+                  </h4>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs text-gray-500 mb-1 block">Analyse 1</label>
+                      <select 
+                        value={selectedAudit1 || ''} 
+                        onChange={(e) => setSelectedAudit1(e.target.value || null)}
+                        className="w-full p-2 border rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        <option value="">Sélectionner...</option>
+                        {org.audits.map(a => (
+                          <option key={a.date} value={a.date} disabled={a.date === selectedAudit2}>
+                            {a.date} ({a.score}%)
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 mb-1 block">Analyse 2</label>
+                      <select 
+                        value={selectedAudit2 || ''} 
+                        onChange={(e) => setSelectedAudit2(e.target.value || null)}
+                        className="w-full p-2 border rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        <option value="">Sélectionner...</option>
+                        {org.audits.map(a => (
+                          <option key={a.date} value={a.date} disabled={a.date === selectedAudit1}>
+                            {a.date} ({a.score}%)
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setShowComparison(true)}
+                    disabled={!selectedAudit1 || !selectedAudit2}
+                    className="mt-3 w-full py-2 px-4 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:from-indigo-600 hover:to-purple-600 transition-all"
+                  >
+                    🔍 Voir la comparaison
+                  </button>
+                </div>
+              )}
             </div>
 
             <div className="bg-white card-soft p-6">
@@ -152,30 +359,341 @@ export default function OrganizationDashboard() {
               </div>
             </div>
           </div>
+
+          {/* Modal/Section de comparaison */}
+          {showComparison && comparison && (
+            <div className="bg-white card-soft p-6 border-2 border-indigo-200 animate-fadeIn">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-bold flex items-center gap-2">
+                  <span>📊</span> Comparaison des analyses
+                </h3>
+                <button 
+                  onClick={() => setShowComparison(false)}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Résumé de l'évolution */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <div className="bg-gradient-to-br from-blue-50 to-indigo-100 p-4 rounded-xl text-center">
+                  <p className="text-xs text-blue-600 mb-1">Période analysée</p>
+                  <p className="text-lg font-bold text-blue-800">{comparison.daysBetween} jours</p>
+                  <p className="text-xs text-gray-600 mt-1">
+                    {comparison.older.date} → {comparison.newer.date}
+                  </p>
+                </div>
+                
+                <div className={`p-4 rounded-xl text-center ${comparison.scoreDiff >= 0 ? 'bg-gradient-to-br from-green-50 to-emerald-100' : 'bg-gradient-to-br from-red-50 to-rose-100'}`}>
+                  <p className={`text-xs mb-1 ${comparison.scoreDiff >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    Évolution du score
+                  </p>
+                  <p className={`text-3xl font-bold ${getEvolutionColor(comparison.scoreDiff)}`}>
+                    {comparison.scoreDiff > 0 ? '+' : ''}{comparison.scoreDiff}%
+                  </p>
+                  <p className="text-xs text-gray-600 mt-1">
+                    {comparison.older.score}% → {comparison.newer.score}%
+                  </p>
+                </div>
+
+                <div className="bg-gradient-to-br from-purple-50 to-violet-100 p-4 rounded-xl text-center">
+                  <p className="text-xs text-purple-600 mb-1">Tendance</p>
+                  <p className="text-3xl">
+                    {comparison.scoreDiff > 5 ? '🚀' : comparison.scoreDiff > 0 ? '📈' : comparison.scoreDiff < -5 ? '⚠️' : comparison.scoreDiff < 0 ? '📉' : '➡️'}
+                  </p>
+                  <p className="text-sm font-medium text-purple-800 mt-1">
+                    {comparison.scoreDiff > 5 ? 'Excellente progression' : 
+                     comparison.scoreDiff > 0 ? 'Progression' : 
+                     comparison.scoreDiff < -5 ? 'Régression importante' : 
+                     comparison.scoreDiff < 0 ? 'Légère régression' : 'Stable'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Comparaison détaillée des audits */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                {/* Audit ancien */}
+                <div className="border rounded-xl p-4 bg-gray-50">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-lg">📅</span>
+                    <div>
+                      <h4 className="font-semibold text-gray-800">{comparison.older.title}</h4>
+                      <p className="text-xs text-gray-500">{comparison.older.date}</p>
+                    </div>
+                  </div>
+                  <div className="text-center py-4 bg-white rounded-lg">
+                    <p className="text-4xl font-bold text-gray-600">{comparison.older.score}%</p>
+                    <p className="text-sm text-gray-500">Score global</p>
+                  </div>
+                </div>
+
+                {/* Audit récent */}
+                <div className="border-2 border-indigo-200 rounded-xl p-4 bg-indigo-50">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-lg">🆕</span>
+                    <div>
+                      <h4 className="font-semibold text-indigo-800">{comparison.newer.title}</h4>
+                      <p className="text-xs text-indigo-500">{comparison.newer.date}</p>
+                    </div>
+                  </div>
+                  <div className="text-center py-4 bg-white rounded-lg">
+                    <p className="text-4xl font-bold text-indigo-600">{comparison.newer.score}%</p>
+                    <p className="text-sm text-indigo-500">Score global</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Évolution par domaine */}
+              {Object.keys(comparison.domainDiffs).length > 0 && (
+                <div>
+                  <h4 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                    <span>🎯</span> Évolution par domaine COBIT
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                    {Object.entries(comparison.domainDiffs).map(([domain, diff]) => (
+                      <div key={domain} className="border rounded-xl p-4 bg-white hover:shadow-md transition-shadow">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="w-8 h-8 flex items-center justify-center bg-[rgba(59,107,255,0.12)] text-[rgba(59,107,255,1)] rounded-lg">
+                            {iconFor(domain)}
+                          </div>
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${getEvolutionBadge(diff)}`}>
+                            {diff > 0 ? '+' : ''}{diff.toFixed(1)}
+                          </span>
+                        </div>
+                        <p className="text-sm font-semibold text-gray-800">{domain}</p>
+                        <div className="flex items-center gap-1 mt-1">
+                          <span className="text-lg">{getEvolutionIcon(diff)}</span>
+                          <span className={`text-xs ${getEvolutionColor(diff)}`}>
+                            {comparison.older.domainScores?.[domain as keyof typeof comparison.older.domainScores] || 0} → {comparison.newer.domainScores?.[domain as keyof typeof comparison.newer.domainScores] || 0}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Analyse de l'évolution */}
+              <div className="mt-6 p-4 bg-gradient-to-r from-amber-50 to-yellow-50 rounded-xl border border-amber-200">
+                <h4 className="font-semibold text-amber-800 mb-2 flex items-center gap-2">
+                  <span>💡</span> Analyse de l&apos;évolution
+                </h4>
+                <div className="text-sm text-gray-700 space-y-2">
+                  {comparison.scoreDiff > 0 ? (
+                    <>
+                      <p>✅ <strong>Progression constatée</strong> : L&apos;organisation a amélioré son score de maturité de {comparison.scoreDiff}% sur une période de {comparison.daysBetween} jours.</p>
+                      {Object.entries(comparison.domainDiffs).filter(([, d]) => d > 0).length > 0 && (
+                        <p>📈 <strong>Domaines en amélioration</strong> : {Object.entries(comparison.domainDiffs).filter(([, d]) => d > 0).map(([dom]) => dom).join(', ')}</p>
+                      )}
+                    </>
+                  ) : comparison.scoreDiff < 0 ? (
+                    <>
+                      <p>⚠️ <strong>Régression détectée</strong> : Le score a diminué de {Math.abs(comparison.scoreDiff)}% sur {comparison.daysBetween} jours. Une attention particulière est recommandée.</p>
+                      {Object.entries(comparison.domainDiffs).filter(([, d]) => d < 0).length > 0 && (
+                        <p>📉 <strong>Domaines en régression</strong> : {Object.entries(comparison.domainDiffs).filter(([, d]) => d < 0).map(([dom]) => dom).join(', ')}</p>
+                      )}
+                    </>
+                  ) : (
+                    <p>➡️ <strong>Stabilité</strong> : Le score global est resté stable sur la période analysée.</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Recommandations automatiques (basées sur le domaine le plus faible) */}
-        <div className="mt-6">
-          <div className="bg-white card-soft p-6">
-            <h3 className="text-lg font-semibold mb-3">Recommandations prioritaires</h3>
-            {(() => {
-              const domains = org.domainScores || {};
-              const sorted = Object.entries(domains).sort((a,b) => (a[1] as number) - (b[1] as number));
-              const weakest = sorted[0];
-              if (!weakest) return <div>Aucune donnée disponible</div>;
-              const [domainName, value] = weakest as [string, number];
-              const recs = recommendationsForDomain(domainName as 'EDM'|'APO'|'BAI'|'DSS'|'MEA', value).slice(0,3);
-              return (
-                <div>
-                  <div className="text-sm text-gray-500 mb-3">Domaine prioritaire : <strong>{domainName}</strong> ({value})</div>
-                  <ul className="list-disc pl-5 text-gray-700">
-                    {recs.map((r, i) => <li key={i}>{r}</li>)}
-                  </ul>
-                  <div className="mt-3 text-xs text-gray-400">Recommandations générées automatiquement — option IA : générer des recommandations sectorielles détaillées</div>
+        {/* Recommandations IA améliorées */}
+        <div className="mt-6 space-y-6">
+          {/* Résumé et Analyse IA */}
+          {aiRecommendations && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Résumé */}
+              <div className="bg-gradient-to-br from-blue-50 to-indigo-100 card-soft p-6 border border-blue-200">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-2xl">🧠</span>
+                  <h3 className="text-lg font-semibold text-blue-800">Analyse IA</h3>
                 </div>
-              );
-            })()}
+                <p className="text-gray-700 leading-relaxed">{aiRecommendations.summary}</p>
+              </div>
+
+              {/* Analyse de maturité */}
+              <div className="bg-gradient-to-br from-purple-50 to-violet-100 card-soft p-6 border border-purple-200">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-2xl">📊</span>
+                  <h3 className="text-lg font-semibold text-purple-800">Niveau de maturité</h3>
+                </div>
+                <p className="text-gray-700 leading-relaxed">{aiRecommendations.maturityAnalysis}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Bouton de régénération */}
+          <div className="flex justify-end">
+            <button
+              onClick={fetchAIRecommendations}
+              disabled={isLoadingAI}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:from-blue-600 hover:to-purple-600 transition-all disabled:opacity-50"
+            >
+              {isLoadingAI ? (
+                <>
+                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                  </svg>
+                  Génération en cours...
+                </>
+              ) : (
+                <>
+                  <span>🔄</span>
+                  Régénérer les recommandations IA
+                </>
+              )}
+            </button>
           </div>
+
+          {aiError && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
+              ⚠️ {aiError}
+            </div>
+          )}
+
+          {/* Quick Wins */}
+          {aiRecommendations && aiRecommendations.recommendations.some(r => r.quickWins.length > 0) && (
+            <div className="bg-gradient-to-r from-emerald-50 to-teal-50 card-soft p-6 border border-emerald-200">
+              <div className="flex items-center gap-2 mb-4">
+                <span className="text-2xl">⚡</span>
+                <h3 className="text-lg font-semibold text-emerald-800">Quick Wins - Actions rapides à fort impact</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {aiRecommendations.recommendations.flatMap(r => 
+                  r.quickWins.map((qw, i) => (
+                    <div key={`${r.domain}-qw-${i}`} className="flex items-start gap-2 bg-white p-3 rounded-lg shadow-sm">
+                      <span className="text-emerald-500">✓</span>
+                      <span className="text-sm text-gray-700">{qw}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Recommandations par domaine */}
+          <div className="bg-white card-soft p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-semibold flex items-center gap-2">
+                <span>🎯</span>
+                Recommandations par domaine
+              </h3>
+              {isLoadingAI && (
+                <div className="flex items-center gap-2 text-blue-600">
+                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                  </svg>
+                  Analyse IA en cours...
+                </div>
+              )}
+            </div>
+
+            {aiRecommendations ? (
+              <div className="space-y-6">
+                {aiRecommendations.recommendations.map((rec) => (
+                  <div key={rec.domain} className="border rounded-xl overflow-hidden">
+                    {/* Header du domaine */}
+                    <div className="bg-gradient-to-r from-gray-50 to-gray-100 p-4 border-b flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 flex items-center justify-center bg-[rgba(59,107,255,0.12)] text-[rgba(59,107,255,1)] rounded-lg">
+                          {iconFor(rec.domain)}
+                        </div>
+                        <div>
+                          <h4 className="font-semibold text-gray-800">{rec.domain} - {rec.domainName}</h4>
+                          <p className="text-sm text-gray-500">Score actuel: {rec.score}/5</p>
+                        </div>
+                      </div>
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getPriorityColor(rec.priority)}`}>
+                        {getPriorityLabel(rec.priority)}
+                      </span>
+                    </div>
+
+                    {/* Actions recommandées */}
+                    <div className="p-4">
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        {rec.actions.map((action, actionIndex) => (
+                          <div key={actionIndex} className="bg-gray-50 rounded-lg p-4 hover:bg-gray-100 transition-colors">
+                            <div className="flex items-start justify-between mb-2">
+                              <h5 className="font-medium text-gray-800">{action.title}</h5>
+                              <span className="text-xs bg-white px-2 py-1 rounded border text-gray-600">
+                                {getEffortBadge(action.effort)}
+                              </span>
+                            </div>
+                            <p className="text-sm text-gray-600 mb-3">{action.description}</p>
+                            <div className="flex items-center gap-4 text-xs text-gray-500">
+                              <span className="flex items-center gap-1">
+                                <span>📈</span> {action.impact}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <span>⏰</span> {action.timeline}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-10">
+                {isLoadingAI ? (
+                  <div className="flex flex-col items-center gap-4">
+                    <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center">
+                      <svg className="animate-spin h-8 w-8 text-blue-600" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                      </svg>
+                    </div>
+                    <p className="text-gray-600">L&apos;IA analyse vos résultats pour générer des recommandations personnalisées...</p>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center gap-4">
+                    <span className="text-4xl">🤖</span>
+                    <p className="text-gray-600">Cliquez sur le bouton ci-dessus pour générer des recommandations IA</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Statistiques de progression */}
+          {aiRecommendations && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-white card-soft p-4 text-center">
+                <div className="text-3xl font-bold text-red-500">
+                  {aiRecommendations.recommendations.filter(r => r.priority === 'critical').length}
+                </div>
+                <div className="text-sm text-gray-600">Domaines critiques</div>
+              </div>
+              <div className="bg-white card-soft p-4 text-center">
+                <div className="text-3xl font-bold text-orange-500">
+                  {aiRecommendations.recommendations.filter(r => r.priority === 'high').length}
+                </div>
+                <div className="text-sm text-gray-600">Haute priorité</div>
+              </div>
+              <div className="bg-white card-soft p-4 text-center">
+                <div className="text-3xl font-bold text-blue-500">
+                  {aiRecommendations.recommendations.reduce((acc, r) => acc + r.actions.length, 0)}
+                </div>
+                <div className="text-sm text-gray-600">Actions suggérées</div>
+              </div>
+              <div className="bg-white card-soft p-4 text-center">
+                <div className="text-3xl font-bold text-emerald-500">
+                  {aiRecommendations.recommendations.reduce((acc, r) => acc + r.quickWins.length, 0)}
+                </div>
+                <div className="text-sm text-gray-600">Quick wins</div>
+              </div>
+            </div>
+          )}
         </div>
 
         <footer className="py-10 text-center text-gray-500 text-sm">© {new Date().getFullYear()} Maturis – {org.name}</footer>

@@ -14,8 +14,9 @@ export const organizations = [
     lastAudit: "2025-10-12",
     domainScores: { EDM: 3.2, APO: 2.8, BAI: 3.5, DSS: 2.7, MEA: 3.0 },
     audits: [
-      { id: 'a1', date: '2025-10-12', score: 78, title: 'Audit Infrastructures IT' },
-      { id: 'a0', date: '2024-06-05', score: 71, title: 'Audit Sécurité & Gouvernance' },
+      { id: 'a1', date: '2025-10-12', score: 78, title: 'Audit Infrastructures IT', domainScores: { EDM: 3.2, APO: 2.8, BAI: 3.5, DSS: 2.7, MEA: 3.0 } },
+      { id: 'a0', date: '2024-06-05', score: 71, title: 'Audit Sécurité & Gouvernance', domainScores: { EDM: 2.8, APO: 2.5, BAI: 3.0, DSS: 2.3, MEA: 2.6 } },
+      { id: 'a-1', date: '2023-11-15', score: 65, title: 'Audit Initial', domainScores: { EDM: 2.4, APO: 2.2, BAI: 2.7, DSS: 2.0, MEA: 2.3 } },
     ],
   },
   {
@@ -33,8 +34,8 @@ export const organizations = [
     lastAudit: "2025-08-02",
     domainScores: { EDM: 2.6, APO: 3.2, BAI: 2.9, DSS: 2.1, MEA: 2.8 },
     audits: [
-      { id: 'b1', date: '2025-08-02', score: 62, title: 'Audit Processus' },
-      { id: 'b0', date: '2024-11-20', score: 58, title: 'Audit Initial' },
+      { id: 'b1', date: '2025-08-02', score: 62, title: 'Audit Processus', domainScores: { EDM: 2.6, APO: 3.2, BAI: 2.9, DSS: 2.1, MEA: 2.8 } },
+      { id: 'b0', date: '2024-11-20', score: 58, title: 'Audit Initial', domainScores: { EDM: 2.3, APO: 2.8, BAI: 2.5, DSS: 1.8, MEA: 2.4 } },
     ],
   },
   {
@@ -52,7 +53,9 @@ export const organizations = [
     lastAudit: "2025-07-19",
     domainScores: { EDM: 2.4, APO: 2.7, BAI: 2.5, DSS: 2.9, MEA: 2.2 },
     audits: [
-      { id: 'm1', date: '2025-07-19', score: 54, title: 'Audit Gouvernance' },
+      { id: 'm1', date: '2025-07-19', score: 54, title: 'Audit Gouvernance', domainScores: { EDM: 2.4, APO: 2.7, BAI: 2.5, DSS: 2.9, MEA: 2.2 } },
+      { id: 'm0', date: '2024-03-10', score: 48, title: 'Audit Conformité', domainScores: { EDM: 2.0, APO: 2.3, BAI: 2.1, DSS: 2.5, MEA: 1.9 } },
+      { id: 'm-1', date: '2023-06-25', score: 42, title: 'Premier Audit', domainScores: { EDM: 1.7, APO: 2.0, BAI: 1.8, DSS: 2.2, MEA: 1.6 } },
     ],
   },
 ];
