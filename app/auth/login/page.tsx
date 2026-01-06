@@ -77,14 +77,14 @@ export default function LoginPage() {
             </form>
 
             {/* Informations de démo */}
-            <div className="mt-6 p-4 bg-blue-50 rounded-lg text-sm">
+            {/* <div className="mt-6 p-4 bg-blue-50 rounded-lg text-sm">
               <p className="font-semibold mb-2">Comptes de démonstration :</p>
               <ul className="space-y-1 text-gray-600">
                 <li>• admin@maturis.com / admin123</li>
                 <li>• jean.dupont@acme.com / password123</li>
                 <li>• marie.martin@bionet.fr / password123</li>
               </ul>
-            </div>
+            </div> */}
           </div>
         </div>
 
