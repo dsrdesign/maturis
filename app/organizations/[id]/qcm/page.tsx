@@ -218,8 +218,8 @@ export default function QcmPage() {
       domainScores[domain.code as keyof typeof domainScores] = Math.round(avg * 100) / 100;
     }
 
-    // Calculer le score global
-    const global = computeGlobalScore(domainScores, org.sector) || 0;
+    // Calculer le score global avec les poids personnalisés de l'organisation
+    const global = computeGlobalScore(domainScores, org.sector, org.domainWeights) || 0;
     const percent = Math.round((global / 5) * 100);
 
     // Créer un nouvel audit avec un ID basé sur le contenu

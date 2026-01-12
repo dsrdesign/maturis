@@ -1,46 +1,125 @@
+import type { System, UserRole } from './types';
+
+// Re-exporter UserRole depuis types
+export type { UserRole } from './types';
+
 export type User = {
   id: string;
   name: string;
   email: string;
   password: string;
-  role: 'admin' | 'user';
-  organizationIds: string[]; // IDs des organisations auxquelles l'utilisateur a accès
+  role: UserRole;
+  systemId: string;
+  organizationIds: string[];
 };
+
+// Système par défaut pour les données de démonstration
+export const mockSystems: System[] = [
+  {
+    id: 'system-default',
+    name: 'Maturis - Système Principal',
+    description: 'Système de démonstration avec données pré-configurées',
+    organizationIds: ['org-1', 'org-2', 'org-3'],
+    userIds: ['user-1', 'user-2', 'user-3', 'user-4'],
+  },
+];
 
 export const mockUsers: User[] = [
   {
     id: 'user-1',
-    name: 'Jean Dupont',
-    email: 'jean.dupont@acme.com',
-    password: 'password123', // En production, utilisez un hash!
-    role: 'user',
-    organizationIds: ['org-1'],
-  },
-  {
-    id: 'user-2',
-    name: 'Marie Martin',
-    email: 'marie.martin@bionet.fr',
-    password: 'password123',
-    role: 'user',
-    organizationIds: ['org-2'],
-  },
-  {
-    id: 'user-3',
-    name: 'Pierre Durand',
-    email: 'pierre.durand@mairie.fr',
-    password: 'password123',
-    role: 'user',
-    organizationIds: ['org-3'],
-  },
-  {
-    id: 'user-4',
-    name: 'Admin Global',
+    name: 'Admin Principal',
     email: 'admin@maturis.com',
     password: 'admin123',
     role: 'admin',
-    organizationIds: ['org-1', 'org-2', 'org-3'], // Admin voit toutes les organisations
+    systemId: 'system-default',
+    organizationIds: ['org-1', 'org-2', 'org-3'], // Admin voit toutes les organisations du système
+  },
+  {
+    id: 'user-2',
+    name: 'Marie Décideur',
+    email: 'decideur@maturis.com',
+    password: 'password123',
+    role: 'decideur',
+    systemId: 'system-default',
+    organizationIds: ['org-1', 'org-2'], // Décideur accède à certaines organisations
+  },
+  {
+    id: 'user-3',
+    name: 'Jean Évaluateur',
+    email: 'evaluateur@maturis.com',
+    password: 'password123',
+    role: 'evaluation',
+    systemId: 'system-default',
+    organizationIds: ['org-1', 'org-2', 'org-3'], // Évaluateur peut analyser toutes les organisations
+  },
+  {
+    id: 'user-4',
+    name: 'Pierre Décideur',
+    email: 'pierre@maturis.com',
+    password: 'password123',
+    role: 'decideur',
+    systemId: 'system-default',
+    organizationIds: ['org-3'], // Ne voit que l'organisation 3
   },
 ];
+
+// Définition des permissions par rôle
+export const rolePermissions = {
+  admin: {
+    canCreateOrganization: true,
+    canDeleteOrganization: true,
+    canEditOrganization: true,
+    canViewOrganization: true,
+    canRunQCM: true,
+    canViewDashboard: true,
+    canManageUsers: true,
+    canManageSystem: true,
+    canExportData: true,
+    description: 'Administrateur - Accès complet au système',
+  },
+  decideur: {
+    canCreateOrganization: false,
+    canDeleteOrganization: false,
+    canEditOrganization: false,
+    canViewOrganization: true,
+    canRunQCM: false,
+    canViewDashboard: true,
+    canManageUsers: false,
+    canManageSystem: false,
+    canExportData: true,
+    description: 'Décideur - Consultation et export des données',
+  },
+  evaluation: {
+    canCreateOrganization: true,
+    canDeleteOrganization: false,
+    canEditOrganization: true,
+    canViewOrganization: true,
+    canRunQCM: true,
+    canViewDashboard: true,
+    canManageUsers: false,
+    canManageSystem: false,
+    canExportData: true,
+    description: 'Évaluateur - Peut créer et analyser les organisations',
+  },
+} as const;
+
+// Type pour les permissions
+export type RolePermissions = typeof rolePermissions;
+export type Permission = Exclude<keyof typeof rolePermissions.admin, 'description'>;
+
+// Fonction utilitaire pour vérifier une permission
+export function hasPermission(role: UserRole | undefined, permission: Permission): boolean {
+  if (!role) return false;
+  const roleConfig = rolePermissions[role];
+  if (!roleConfig) return false;
+  return roleConfig[permission] as boolean;
+}
+
+// Fonction pour obtenir toutes les permissions d'un rôle
+export function getPermissions(role: UserRole | undefined) {
+  if (!role) return null;
+  return rolePermissions[role] ?? null;
+}
 
 // Fonction pour authentifier un utilisateur
 export function authenticateUser(email: string, password: string): User | null {
@@ -58,14 +137,18 @@ export function registerUser(name: string, email: string, password: string): Use
     return { error: 'Un compte avec cet email existe déjà' };
   }
 
-  // Créer le nouvel utilisateur
+  // Créer le système par défaut
+  const systemId = `system-${Date.now()}`;
+
+  // Créer le nouvel utilisateur (admin du système)
   const newUser: User = {
     id: `user-${mockUsers.length + 1}`,
     name,
     email,
     password,
-    role: 'user',
-    organizationIds: [], // Pas d'organisation par défaut
+    role: 'admin',
+    systemId,
+    organizationIds: [],
   };
 
   mockUsers.push(newUser);

@@ -18,6 +18,13 @@ export type Organization = {
     DSS: number;
     MEA: number;
   };
+  domainWeights?: {
+    EDM: number;
+    APO: number;
+    BAI: number;
+    DSS: number;
+    MEA: number;
+  };
   audits: Array<{
     id: string;
     date: string;
@@ -31,4 +38,24 @@ export type Organization = {
       MEA: number;
     };
   }>;
+};
+
+export type System = {
+  id: string;
+  name: string;
+  description?: string;
+  organizationIds: string[];
+  userIds: string[];
+};
+
+export type UserRole = 'admin' | 'decideur' | 'evaluation';
+
+export type User = {
+  id: string;
+  name: string;
+  email: string;
+  password: string;
+  role: UserRole;
+  systemId: string;
+  organizationIds: string[];
 };

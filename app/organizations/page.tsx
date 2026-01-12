@@ -1,16 +1,28 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
-import { computeGlobalScore } from "../lib/score";
+import { computeGlobalScore, getWeightsForSector } from "../lib/score";
 import { useAuth } from "../lib/AuthContext";
-import { useOrganizations } from "../lib/store";
+import { useOrganizations, usePermissions } from "../lib/store";
 import UserMenu from "@/components/UserMenu";
+
+type DomainKey = 'EDM' | 'APO' | 'BAI' | 'DSS' | 'MEA';
+
+const domainLabels: Record<DomainKey, string> = {
+  EDM: 'Évaluation, Direction et Surveillance',
+  APO: 'Alignement, Planification et Organisation',
+  BAI: 'Bâtir, Acquérir et Implémenter',
+  DSS: 'Délivrer, Servir et Supporter',
+  MEA: 'Surveiller, Évaluer et Apprécier'
+};
 
 export default function OrganizationsPage() {
   const router = useRouter();
   const { user, isLoading } = useAuth();
-  const { filteredOrganizations, addOrganization } = useOrganizations();
+  const { filteredOrganizations, addOrganization, deleteOrganization } = useOrganizations();
+  const { canCreateOrganization, canRunQCM, canDeleteOrganization } = usePermissions();
   const [showModal, setShowModal] = useState(false);
+  const [useCustomWeights, setUseCustomWeights] = useState(false);
   const [form, setForm] = useState({
     name: '',
     description: '',
@@ -22,6 +34,25 @@ export default function OrganizationsPage() {
     legalForm: 'SAS',
     sector: 'bank'
   });
+  const [weights, setWeights] = useState<Record<DomainKey, number>>({
+    EDM: 0.15,
+    APO: 0.20,
+    BAI: 0.20,
+    DSS: 0.25,
+    MEA: 0.20
+  });
+
+  // Mettre à jour les poids quand le secteur change
+  useEffect(() => {
+    if (!useCustomWeights) {
+      const sectorWeights = getWeightsForSector(form.sector);
+      setWeights(sectorWeights as Record<DomainKey, number>);
+    }
+  }, [form.sector, useCustomWeights]);
+
+  // Calculer le total des poids
+  const totalWeight = Object.values(weights).reduce((sum, w) => sum + w, 0);
+  const isWeightValid = Math.abs(totalWeight - 1) < 0.01; // Tolérance de 1%
 
   // Rediriger vers login si non connecté
   useEffect(() => {
@@ -32,9 +63,17 @@ export default function OrganizationsPage() {
 
   function handleAddOrganization(e: React.FormEvent) {
     e.preventDefault();
+    
+    // Vérifier que les poids sont valides si personnalisés
+    if (useCustomWeights && !isWeightValid) {
+      alert('Le total des poids doit être égal à 100%');
+      return;
+    }
+    
     const id = `org-${Date.now()}`;
     const domainScores = { EDM: 0, APO: 0, BAI: 0, DSS: 0, MEA: 0 };
-    const sg = computeGlobalScore(domainScores, form.sector);
+    const domainWeights = useCustomWeights ? weights : getWeightsForSector(form.sector) as Record<DomainKey, number>;
+    const sg = computeGlobalScore(domainScores, form.sector, domainWeights);
     const newOrg = {
       id,
       name: form.name,
@@ -49,6 +88,7 @@ export default function OrganizationsPage() {
       score: Math.round((sg/5)*100),
       lastAudit: '—',
       domainScores,
+      domainWeights,
       audits: [],
     };
     addOrganization(newOrg);
@@ -64,6 +104,8 @@ export default function OrganizationsPage() {
       legalForm: 'SAS',
       sector: 'bank'
     });
+    setUseCustomWeights(false);
+    setWeights({ EDM: 0.15, APO: 0.20, BAI: 0.20, DSS: 0.25, MEA: 0.20 });
   }
 
   // Afficher un loader pendant la vérification de l'authentification
@@ -95,12 +137,14 @@ export default function OrganizationsPage() {
         <p className="text-gray-600 mb-6">Sélectionnez une organisation pour voir son dashboard ou démarrez une nouvelle analyse.</p>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Add organization card */}
-          <div className="bg-white card-soft p-6 flex flex-col justify-center items-center text-center card-hover">
-            <h3 className="text-lg font-semibold mb-2">Ajouter une organisation</h3>
-            <p className="text-sm text-gray-500 mb-4">Créez une nouvelle organisation et lancez un diagnostic.</p>
-            <button onClick={() => setShowModal(true)} className="w-full btn-gradient text-white py-3 rounded-xl">+ Ajouter</button>
-          </div>
+          {/* Ajout d'organisation visible uniquement si l'utilisateur a la permission */}
+          {canCreateOrganization && (
+            <div className="bg-white card-soft p-6 flex flex-col justify-center items-center text-center card-hover">
+              <h3 className="text-lg font-semibold mb-2">Ajouter une organisation</h3>
+              <p className="text-sm text-gray-500 mb-4">Créez une nouvelle organisation et lancez un diagnostic.</p>
+              <button onClick={() => setShowModal(true)} className="w-full btn-gradient text-white py-3 rounded-xl">+ Ajouter</button>
+            </div>
+          )}
 
           {filteredOrganizations.map((org) => (
             <div key={org.id} className="bg-white card-soft p-6">
@@ -144,8 +188,23 @@ export default function OrganizationsPage() {
 
                 <div className="flex gap-3 mt-4">
                   <button onClick={() => router.push(`/organizations/${org.id}`)} className="flex-1 px-3 py-2 text-sm rounded-lg bg-gray-50 hover:bg-gray-100">Voir</button>
-
-                  <button onClick={() => router.push(`/organizations/${org.id}/qcm`)} className="flex-1 px-3 py-2 text-sm rounded-lg btn-gradient text-white">Analyser</button>
+                  {/* Bouton Analyser visible si l'utilisateur a la permission */}
+                  {canRunQCM && (
+                    <button onClick={() => router.push(`/organizations/${org.id}/qcm`)} className="flex-1 px-3 py-2 text-sm rounded-lg btn-gradient text-white">Analyser</button>
+                  )}
+                  {/* Bouton Supprimer visible si l'utilisateur a la permission */}
+                  {canDeleteOrganization && (
+                    <button 
+                      onClick={() => {
+                        if (confirm(`Êtes-vous sûr de vouloir supprimer "${org.name}" ?`)) {
+                          deleteOrganization(org.id);
+                        }
+                      }} 
+                      className="px-3 py-2 text-sm rounded-lg bg-red-50 hover:bg-red-100 text-red-600"
+                    >
+                      Supprimer
+                    </button>
+                  )}
                 </div>
             </div>
           ))}
@@ -289,6 +348,73 @@ export default function OrganizationsPage() {
                     </select>
                   </div>
                 </div>
+              </div>
+
+              {/* Section Pondération des domaines */}
+              <div className="border-t pt-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-medium text-gray-700">Pondération des domaines COBIT</h4>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={useCustomWeights}
+                      onChange={(e) => {
+                        setUseCustomWeights(e.target.checked);
+                        if (!e.target.checked) {
+                          const sectorWeights = getWeightsForSector(form.sector);
+                          setWeights(sectorWeights as Record<DomainKey, number>);
+                        }
+                      }}
+                      className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                    />
+                    <span className="text-sm text-gray-600">Personnaliser</span>
+                  </label>
+                </div>
+                
+                <p className="text-xs text-gray-500 mb-3">
+                  {useCustomWeights 
+                    ? 'Ajustez les poids selon l\'importance de chaque domaine pour votre organisation.' 
+                    : `Poids par défaut pour le secteur "${form.sector === 'bank' ? 'Banque' : form.sector === 'health' ? 'Santé' : 'Industrie'}".`}
+                </p>
+
+                <div className="space-y-3">
+                  {(Object.keys(weights) as DomainKey[]).map((domain) => (
+                    <div key={domain} className="flex items-center gap-3">
+                      <div className="w-12 text-sm font-semibold text-gray-700">{domain}</div>
+                      <div className="flex-1">
+                        <input
+                          type="range"
+                          min="0"
+                          max="50"
+                          step="1"
+                          value={weights[domain] * 100}
+                          onChange={(e) => {
+                            if (useCustomWeights) {
+                              setWeights(w => ({...w, [domain]: parseInt(e.target.value) / 100}));
+                            }
+                          }}
+                          disabled={!useCustomWeights}
+                          className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer disabled:opacity-50"
+                        />
+                        <p className="text-xs text-gray-400 mt-0.5">{domainLabels[domain]}</p>
+                      </div>
+                      <div className={`w-14 text-right text-sm font-medium ${useCustomWeights ? 'text-blue-600' : 'text-gray-500'}`}>
+                        {Math.round(weights[domain] * 100)}%
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Indicateur de total */}
+                <div className={`mt-3 p-2 rounded-lg text-sm flex items-center justify-between ${
+                  isWeightValid ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
+                }`}>
+                  <span>Total des poids:</span>
+                  <span className="font-semibold">{Math.round(totalWeight * 100)}%</span>
+                </div>
+                {!isWeightValid && useCustomWeights && (
+                  <p className="text-xs text-red-500 mt-1">Le total doit être égal à 100%</p>
+                )}
               </div>
 
               <div className="flex items-center gap-3 mt-3 pt-3 border-t">

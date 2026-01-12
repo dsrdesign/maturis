@@ -17,8 +17,13 @@ export function computeDomainAverage(domainValues: number[]) {
   return s / domainValues.length;
 }
 
-export function computeGlobalScore(domainScores: Record<DomainKey, number>, sector?: string) {
-  const weights = getWeightsForSector(sector) as Record<DomainKey, number>;
+export function computeGlobalScore(
+  domainScores: Record<DomainKey, number>, 
+  sector?: string,
+  customWeights?: Record<DomainKey, number>
+) {
+  // Utiliser les poids personnalisés s'ils sont fournis, sinon les poids par défaut du secteur
+  const weights = customWeights || getWeightsForSector(sector) as Record<DomainKey, number>;
   const domains: DomainKey[] = ['EDM','APO','BAI','DSS','MEA'];
   let sg = 0;
   for (const d of domains) {

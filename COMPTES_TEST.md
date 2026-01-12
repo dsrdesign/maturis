@@ -1,144 +1,160 @@
 # 🔐 Comptes de test - Maturis
 
-## Comptes disponibles
+## Système par défaut
 
-### 👤 Utilisateurs normaux (rôle: `user`)
-
-Chaque utilisateur ne voit que **ses propres organisations** assignées.
-
-#### 1. Jean Dupont (Acme Corp)
-- **Email**: `jean.dupont@acme.com`
-- **Password**: `password123`
-- **Rôle**: `user`
-- **Organisation(s)**: Acme Corp (org-1)
-- **Utilisation**: Tester l'accès limité à une seule organisation
-
-#### 2. Marie Martin (Bionet)
-- **Email**: `marie.martin@bionet.fr`
-- **Password**: `password123`
-- **Rôle**: `user`
-- **Organisation(s)**: Bionet (org-2)
-- **Utilisation**: Tester l'accès limité à une seule organisation
-
-#### 3. Pierre Durand (Municipalité X)
-- **Email**: `pierre.durand@mairie.fr`
-- **Password**: `password123`
-- **Rôle**: `user`
-- **Organisation(s)**: Municipalité X (org-3)
-- **Utilisation**: Tester l'accès limité à une seule organisation
+Tous les utilisateurs sont rattachés au système **"Maturis - Système Principal"** (`system-default`).
 
 ---
 
-### 👑 Administrateur global (rôle: `admin`)
+## Comptes disponibles
 
-L'administrateur voit **toutes les organisations** de la plateforme.
+### 👑 Administrateur (rôle: `admin`)
 
-#### Admin Global
+L'administrateur a un accès complet au système.
+
+#### Admin Principal
 - **Email**: `admin@maturis.com`
 - **Password**: `admin123`
 - **Rôle**: `admin`
-- **Organisation(s)**: Toutes (org-1, org-2, org-3, + nouvelles)
-- **Utilisation**: Tester l'accès complet à toutes les organisations
+- **Organisation(s)**: Toutes (org-1, org-2, org-3)
+- **Permissions**:
+  - ✅ Gestion complète du système
+  - ✅ Création/suppression d'organisations
+  - ✅ Gestion des utilisateurs
+  - ✅ Exécution des analyses QCM
+  - ✅ Export des données
+  - ✅ Accès au panel d'administration
 
 ---
 
-## Permissions par rôle
+### 📊 Évaluateurs (rôle: `evaluation`)
 
-### 🔹 Rôle `user`
-- ✅ Voir uniquement les organisations dans `organizationIds`
-- ✅ Créer de nouvelles organisations (automatiquement assignées)
-- ✅ Analyser ses organisations
-- ❌ Voir les organisations des autres utilisateurs
+Les évaluateurs peuvent créer et analyser les organisations.
 
-### 🔹 Rôle `admin`
-- ✅ Voir **TOUTES** les organisations
-- ✅ Créer de nouvelles organisations
-- ✅ Analyser toutes les organisations
-- ✅ Accès complet à la plateforme
+#### Jean Évaluateur
+- **Email**: `evaluateur@maturis.com`
+- **Password**: `password123`
+- **Rôle**: `evaluation`
+- **Organisation(s)**: Toutes (org-1, org-2, org-3)
+- **Permissions**:
+  - ✅ Création d'organisations
+  - ✅ Exécution des analyses QCM
+  - ✅ Modification des organisations
+  - ✅ Consultation des dashboards
+  - ✅ Export des données
+  - ❌ Pas de gestion des utilisateurs
+  - ❌ Pas de suppression d'organisations
+
+---
+
+### 👔 Décideurs (rôle: `decideur`)
+
+Les décideurs ont un accès en lecture seule.
+
+#### Marie Décideur
+- **Email**: `decideur@maturis.com`
+- **Password**: `password123`
+- **Rôle**: `decideur`
+- **Organisation(s)**: Acme Corp, Bionet (org-1, org-2)
+- **Permissions**:
+  - ✅ Consultation des organisations
+  - ✅ Consultation des dashboards
+  - ✅ Export des données
+  - ❌ Pas de création d'organisations
+  - ❌ Pas de modification
+  - ❌ Pas d'analyse QCM
+
+#### Pierre Décideur
+- **Email**: `pierre@maturis.com`
+- **Password**: `password123`
+- **Rôle**: `decideur`
+- **Organisation(s)**: Municipalité X (org-3 uniquement)
+- **Permissions**: Identiques à Marie Décideur
+
+---
+
+## Permissions par rôle - Résumé
+
+| Permission | Admin | Évaluateur | Décideur |
+|------------|:-----:|:----------:|:--------:|
+| Créer organisation | ✅ | ✅ | ❌ |
+| Supprimer organisation | ✅ | ❌ | ❌ |
+| Modifier organisation | ✅ | ✅ | ❌ |
+| Voir organisation | ✅ | ✅ | ✅ |
+| Analyser (QCM) | ✅ | ✅ | ❌ |
+| Voir dashboard | ✅ | ✅ | ✅ |
+| Gérer utilisateurs | ✅ | ❌ | ❌ |
+| Gérer système | ✅ | ❌ | ❌ |
+| Exporter données | ✅ | ✅ | ✅ |
 
 ---
 
 ## Tests à effectuer
 
-### Test 1: Utilisateur normal (isolation des données)
-1. Se connecter avec `jean.dupont@acme.com` / `password123`
-2. ✅ Devrait voir uniquement "Acme Corp"
-3. Créer une nouvelle organisation
-4. ✅ Devrait voir "Acme Corp" + la nouvelle organisation
-5. Se déconnecter
-
-### Test 2: Autre utilisateur normal
-1. Se connecter avec `marie.martin@bionet.fr` / `password123`
-2. ✅ Devrait voir uniquement "Bionet"
-3. ❌ Ne devrait PAS voir "Acme Corp" ni les organisations créées par Jean
-
-### Test 3: Admin global
+### Test 1: Admin - Accès complet
 1. Se connecter avec `admin@maturis.com` / `admin123`
-2. ✅ Devrait voir TOUTES les organisations (Acme Corp, Bionet, Municipalité X, + toutes les nouvelles)
-3. Créer une organisation
-4. ✅ L'organisation est visible pour l'admin
-5. Se déconnecter et se reconnecter avec `jean.dupont@acme.com`
-6. ✅ Jean ne devrait PAS voir l'organisation créée par l'admin (sauf si elle lui est assignée)
+2. ✅ Devrait voir toutes les organisations (Acme Corp, Bionet, Municipalité X)
+3. ✅ Peut créer, modifier et supprimer des organisations
+4. ✅ Peut accéder au panel d'administration (`/admin`)
+5. ✅ Peut gérer les utilisateurs et leurs rôles
 
-### Test 4: Persistance après refresh
-1. Se connecter avec n'importe quel utilisateur
-2. Créer une organisation
-3. **Rafraîchir la page (F5)**
-4. ✅ L'utilisateur doit rester connecté
-5. ✅ Les organisations créées doivent être visibles
-6. ✅ Les organisations des autres utilisateurs ne doivent PAS être visibles
+### Test 2: Évaluateur - Création et analyse
+1. Se connecter avec `evaluateur@maturis.com` / `password123`
+2. ✅ Devrait voir toutes les organisations assignées
+3. ✅ Peut créer de nouvelles organisations
+4. ✅ Peut lancer des analyses QCM
+5. ❌ Ne peut PAS supprimer d'organisations
+6. ❌ Ne peut PAS accéder au panel d'administration
+
+### Test 3: Décideur - Lecture seule
+1. Se connecter avec `decideur@maturis.com` / `password123`
+2. ✅ Devrait voir uniquement Acme Corp et Bionet
+3. ✅ Peut consulter les dashboards
+4. ❌ Ne peut PAS créer d'organisations
+5. ❌ Ne peut PAS lancer d'analyses QCM
+6. ❌ Ne peut PAS accéder au panel d'administration
+
+### Test 4: Décideur avec accès limité
+1. Se connecter avec `pierre@maturis.com` / `password123`
+2. ✅ Devrait voir uniquement Municipalité X
+3. ❌ Ne devrait PAS voir Acme Corp ni Bionet
 
 ---
 
-## Modification des permissions
+## Reset des données
 
-### Ajouter une organisation à un utilisateur manuellement
-
-Ouvrez la console du navigateur (F12) :
+Pour réinitialiser les données de démonstration, utilisez le bouton "Reset" dans le menu utilisateur ou exécutez dans la console :
 
 ```javascript
-// Récupérer le store
-const storage = JSON.parse(localStorage.getItem('maturis-storage'));
-
-// Ajouter une organisation à Jean Dupont (user-1)
-storage.state.user.organizationIds.push('org-2'); // Ajouter Bionet
-
-// Sauvegarder
-localStorage.setItem('maturis-storage', JSON.stringify(storage));
-
-// Rafraîchir la page
-location.reload();
-```
-
-### Promouvoir un utilisateur en admin
-
-```javascript
-const storage = JSON.parse(localStorage.getItem('maturis-storage'));
-storage.state.user.role = 'admin';
-localStorage.setItem('maturis-storage', JSON.stringify(storage));
+localStorage.removeItem('maturis-storage');
 location.reload();
 ```
 
 ---
 
-## Sécurité (à implémenter avec un vrai backend)
+## Structure du système
 
-⚠️ **Important**: Les données actuelles sont en mock (localStorage).
-
-Avec un vrai backend, vous devrez :
-- ✅ Hacher les mots de passe (bcrypt)
-- ✅ Utiliser des JWT pour l'authentification
-- ✅ Vérifier les permissions côté serveur
-- ✅ Valider chaque requête avec le token
-- ✅ Ne JAMAIS faire confiance aux données frontend
+```
+system-default (Maturis - Système Principal)
+├── Utilisateurs:
+│   ├── admin@maturis.com (Admin)
+│   ├── evaluateur@maturis.com (Évaluateur)
+│   ├── decideur@maturis.com (Décideur)
+│   └── pierre@maturis.com (Décideur)
+│
+└── Organisations:
+    ├── org-1: Acme Corp
+    ├── org-2: Bionet
+    └── org-3: Municipalité X
+```
 
 ---
 
-## Résumé rapide
+## Résumé rapide des comptes
 
 | Email | Password | Rôle | Organisations |
 |-------|----------|------|---------------|
-| jean.dupont@acme.com | password123 | user | org-1 uniquement |
-| marie.martin@bionet.fr | password123 | user | org-2 uniquement |
-| pierre.durand@mairie.fr | password123 | user | org-3 uniquement |
 | admin@maturis.com | admin123 | admin | Toutes |
+| evaluateur@maturis.com | password123 | evaluation | Toutes |
+| decideur@maturis.com | password123 | decideur | org-1, org-2 |
+| pierre@maturis.com | password123 | decideur | org-3 uniquement |

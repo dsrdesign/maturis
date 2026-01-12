@@ -1,8 +1,8 @@
 "use client";
 import { useRouter, useParams } from "next/navigation";
 import { useState, useEffect } from "react";
-import { useOrganizations } from "../../lib/store";
-import { computeGlobalScore, cobitLevelFromScore } from "../../lib/score";
+import { useOrganizations, usePermissions } from "../../lib/store";
+import { computeGlobalScore, cobitLevelFromScore, getWeightsForSector } from "../../lib/score";
 import dynamic from 'next/dynamic';
 const RadarChart = dynamic(() => import('../../../components/RadarChart'), { ssr: false });
 const AnimatedList = dynamic(() => import('../../../components/AnimatedList'), { ssr: false });
@@ -33,6 +33,7 @@ export default function OrganizationDashboard() {
   const params = useParams();
   const id = params?.id as string;
   const { getOrganizationById } = useOrganizations();
+  const { canRunQCM, canEditOrganization } = usePermissions();
   const org = getOrganizationById(id);
   
   const [aiRecommendations, setAiRecommendations] = useState<AIRecommendationsResponse | null>(null);
@@ -212,9 +213,11 @@ export default function OrganizationDashboard() {
             <button onClick={() => router.push('/organizations')} className="px-3 py-2 rounded bg-gray-100 hover:bg-gray-200 transition-colors">
               Retour
             </button>
-            <button onClick={() => router.push(`/organizations/${org.id}/qcm`)} className="px-4 py-2 rounded-lg btn-gradient text-white">
-              Démarrer une nouvelle analyse
-            </button>
+            {canRunQCM && (
+              <button onClick={() => router.push(`/organizations/${org.id}/qcm`)} className="px-4 py-2 rounded-lg btn-gradient text-white">
+                Démarrer une nouvelle analyse
+              </button>
+            )}
           </div>
         </div>
 
@@ -274,26 +277,51 @@ export default function OrganizationDashboard() {
           <div className="bg-white card-soft p-6 w-full">
             <h3 className="text-lg font-semibold mb-4">Scores par domaine COBIT</h3>
               <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                {Object.entries(org.domainScores || {}).map(([k, v]) => (
-                  <div key={k} className="flex items-center gap-4 p-4 sm:p-5 rounded-xl border border-gray-100 bg-white/80 shadow-md min-h-[72px]">
-                    <div className="w-12 h-12 flex items-center justify-center bg-[rgba(59,107,255,0.12)] text-[rgba(59,107,255,1)] rounded-lg text-lg">
-                      {iconFor(k)}
+                {Object.entries(org.domainScores || {}).map(([k, v]) => {
+                  const weight = org.domainWeights?.[k as keyof typeof org.domainWeights] 
+                    || getWeightsForSector(org.sector)[k as keyof ReturnType<typeof getWeightsForSector>];
+                  return (
+                    <div key={k} className="flex items-center gap-4 p-4 sm:p-5 rounded-xl border border-gray-100 bg-white/80 shadow-md min-h-[72px]">
+                      <div className="w-12 h-12 flex items-center justify-center bg-[rgba(59,107,255,0.12)] text-[rgba(59,107,255,1)] rounded-lg text-lg">
+                        {iconFor(k)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-base font-semibold text-gray-800 truncate">{k}</div>
+                        <div className="text-xs text-gray-400">Poids: {Math.round(weight * 100)}%</div>
+                      </div>
+                      <div className="text-lg font-bold text-[var(--accent)]">{v}/5</div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-base font-semibold text-gray-800 truncate">{k}</div>
-                      <div className="text-sm text-gray-500">Score mock</div>
-                    </div>
-                    <div className="text-lg font-bold text-[var(--accent)]">{v}/5</div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               <div className="mt-6">
                 <div className="text-sm text-gray-400">Score global pondéré</div>
                 <div className="text-3xl font-bold text-[var(--accent)] mt-1">
-                  {computeGlobalScore(org.domainScores || {EDM:0,APO:0,BAI:0,DSS:0,MEA:0}, org.sector)} / 5
+                  {computeGlobalScore(org.domainScores || {EDM:0,APO:0,BAI:0,DSS:0,MEA:0}, org.sector, org.domainWeights)} / 5
                 </div>
-                <div className="text-sm text-gray-600">Niveau COBIT: {cobitLevelFromScore(computeGlobalScore(org.domainScores || {EDM:0,APO:0,BAI:0,DSS:0,MEA:0}, org.sector))}</div>
+                <div className="text-sm text-gray-600">Niveau COBIT: {cobitLevelFromScore(computeGlobalScore(org.domainScores || {EDM:0,APO:0,BAI:0,DSS:0,MEA:0}, org.sector, org.domainWeights))}</div>
+              </div>
+
+              {/* Affichage des poids */}
+              <div className="mt-6 pt-6 border-t">
+                <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                  <span>⚖️</span> Pondération des domaines
+                </h4>
+                <div className="grid grid-cols-5 gap-2">
+                  {(['EDM', 'APO', 'BAI', 'DSS', 'MEA'] as const).map((domain) => {
+                    const weight = org.domainWeights?.[domain] || getWeightsForSector(org.sector)[domain];
+                    return (
+                      <div key={domain} className="text-center p-2 bg-gray-50 rounded-lg">
+                        <div className="text-xs font-semibold text-gray-600">{domain}</div>
+                        <div className="text-sm font-bold text-[var(--accent)]">{Math.round(weight * 100)}%</div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-gray-400 mt-2">
+                  {org.domainWeights ? '✓ Poids personnalisés' : `Poids par défaut (secteur: ${org.sector})`}
+                </p>
               </div>
           </div>
 
