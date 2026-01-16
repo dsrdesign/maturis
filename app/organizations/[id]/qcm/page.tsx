@@ -78,11 +78,12 @@ export default function QcmPage() {
             employees: org.employees,
             country: org.country,
             city: org.city,
+            creationDate: org.creationDate,
           },
           domainCode: domain.code,
           domainName: domain.name,
           previousScores: org.domainScores,
-          questionCount: 5, // 5 questions par domaine
+          questionCount: 10, // 10 questions par domaine
         }),
       });
 
