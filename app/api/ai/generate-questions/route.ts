@@ -550,8 +550,9 @@ function generateFallbackQuestions(request: GenerateQuestionsRequest): {
 
   // S'assurer qu'on a au moins le nombre de questions demandées
   const requestedCount = request.questionCount || 10;
+  const timestamp = Date.now();
   const questions = domainQuestions.slice(0, requestedCount).map((q, index) => ({
-    id: `AI_${domainCode}_${Date.now()}_${index}`,
+    id: `AI_${domainCode}_${timestamp}_${index}`,
     text: q.text,
     context: q.context,
     options: q.options,
@@ -563,7 +564,7 @@ function generateFallbackQuestions(request: GenerateQuestionsRequest): {
     const index = questions.length % domainQuestions.length;
     const q = domainQuestions[index];
     questions.push({
-      id: `AI_${domainCode}_${Date.now()}_${questions.length}`,
+      id: `AI_${domainCode}_${timestamp}_${questions.length}`,
       text: q.text,
       context: q.context,
       options: q.options,
