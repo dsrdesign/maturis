@@ -16,6 +16,7 @@ type AIGeneratedQuestionsProps = {
     employees: number;
     country: string;
     city: string;
+    creationDate: string;
   };
   domainCode: string;
   domainName: string;
@@ -61,7 +62,7 @@ export default function AIGeneratedQuestions({
           domainName,
           previousScores,
           existingAnswers: currentAnswers,
-          questionCount: 3,
+          questionCount: 10,
         }),
       });
 

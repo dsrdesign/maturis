@@ -8,6 +8,7 @@ type GenerateQuestionsRequest = {
     employees: number;
     country: string;
     city: string;
+    creationDate: string;
   };
   domainCode: string;
   domainName: string;
@@ -112,7 +113,7 @@ async function generateQuestionsWithAI(request: GenerateQuestionsRequest): Promi
   }>;
   reasoning: string;
 }> {
-  const { organizationContext, domainCode, domainName, previousScores, questionCount = 3 } = request;
+  const { organizationContext, domainCode, domainName, previousScores, questionCount = 10 } = request;
   
   const sectorKey = organizationContext.sector === 'bank' ? 'finance' : organizationContext.sector;
   const sectorInfo = sectorContext[sectorKey] || '';
@@ -171,6 +172,7 @@ Réponds UNIQUEMENT avec un JSON valide au format suivant:
 - Organisation: ${organizationContext.name}
 - Secteur: ${organizationContext.sector}
 - Taille: ${organizationContext.employees} employés
+- Date de création: ${organizationContext.creationDate}
 - Localisation: ${organizationContext.city}, ${organizationContext.country}
 - Domaine COBIT à évaluer: ${domainCode} - ${domainName}`;
 
@@ -537,7 +539,7 @@ function generateFallbackQuestions(request: GenerateQuestionsRequest): {
   const domainQuestions = sectorQuestions[sectorKey]?.[domainCode] || sectorQuestions.finance[domainCode] || [];
 
   // Prendre en compte les scores précédents pour personnaliser
-  let reasoning = `Questions générées pour ${organizationContext.name} (secteur: ${organizationContext.sector}, ${organizationContext.employees} employés).`;
+  let reasoning = `Questions générées pour ${organizationContext.name} (secteur: ${organizationContext.sector}, ${organizationContext.employees} employés, créée le ${organizationContext.creationDate}).`;
 
   if (previousScores) {
     const currentScore = previousScores[domainCode as keyof typeof previousScores];
@@ -546,13 +548,28 @@ function generateFallbackQuestions(request: GenerateQuestionsRequest): {
     }
   }
 
-  const questions = domainQuestions.slice(0, request.questionCount || 3).map((q, index) => ({
+  // S'assurer qu'on a au moins le nombre de questions demandées
+  const requestedCount = request.questionCount || 10;
+  const questions = domainQuestions.slice(0, requestedCount).map((q, index) => ({
     id: `AI_${domainCode}_${Date.now()}_${index}`,
     text: q.text,
     context: q.context,
     options: q.options,
     scaleMax: Math.max(...q.options.map(o => o.value)),
   }));
+  
+  // Si on n'a pas assez de questions, on duplique les existantes avec un ID différent
+  while (questions.length < requestedCount && domainQuestions.length > 0) {
+    const index = questions.length % domainQuestions.length;
+    const q = domainQuestions[index];
+    questions.push({
+      id: `AI_${domainCode}_${Date.now()}_${questions.length}`,
+      text: q.text,
+      context: q.context,
+      options: q.options,
+      scaleMax: Math.max(...q.options.map(o => o.value)),
+    });
+  }
 
   return { questions, reasoning };
 }
