@@ -33,8 +33,15 @@ export default function OrganizationDashboard() {
   const params = useParams();
   const id = params?.id as string;
   const { getOrganizationById } = useOrganizations();
-  const { canRunQCM, canEditOrganization } = usePermissions();
+  const { canRunQCM, canEditOrganization, canViewResults, canExportData } = usePermissions();
   const org = getOrganizationById(id);
+
+  // Rediriger les évaluateurs qui n'ont pas accès aux résultats
+  useEffect(() => {
+    if (!canViewResults) {
+      router.push('/organizations');
+    }
+  }, [canViewResults, router]);
   
   const [aiRecommendations, setAiRecommendations] = useState<AIRecommendationsResponse | null>(null);
   const [isLoadingAI, setIsLoadingAI] = useState(false);
@@ -45,13 +52,17 @@ export default function OrganizationDashboard() {
   const [selectedAudit2, setSelectedAudit2] = useState<string | null>(null);
   const [showComparison, setShowComparison] = useState(false);
 
-  // Charger les recommandations IA au chargement de la page
+  // Vérifier si l'organisation a déjà été évaluée (au moins un score > 0)
+  const hasBeenEvaluated = org?.domainScores && 
+    Object.values(org.domainScores).some(score => score > 0);
+
+  // Charger les recommandations IA seulement si l'organisation a été évaluée
   useEffect(() => {
-    if (org && org.domainScores) {
+    if (org && org.domainScores && hasBeenEvaluated) {
       fetchAIRecommendations();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [org?.id]);
+  }, [org?.id, hasBeenEvaluated]);
 
   const fetchAIRecommendations = async () => {
     if (!org) return;
@@ -175,6 +186,62 @@ export default function OrganizationDashboard() {
 
   const comparison = showComparison ? calculateComparison() : null;
 
+  // Fonction d'export CSV pour un audit spécifique
+  const exportAuditToCSV = (audit: typeof org.audits[0]) => {
+    if (!org) return;
+    
+    const headers = ['Organisation', 'Date', 'Titre', 'Score Global (%)', 'EDM', 'APO', 'BAI', 'DSS', 'MEA'];
+    const values = [
+      org.name,
+      audit.date,
+      audit.title,
+      audit.score.toString(),
+      audit.domainScores?.EDM?.toString() || '0',
+      audit.domainScores?.APO?.toString() || '0',
+      audit.domainScores?.BAI?.toString() || '0',
+      audit.domainScores?.DSS?.toString() || '0',
+      audit.domainScores?.MEA?.toString() || '0',
+    ];
+    
+    const csvContent = [headers.join(';'), values.join(';')].join('\n');
+    downloadCSV(csvContent, `evaluation_${org.name}_${audit.date}.csv`);
+  };
+
+  // Fonction d'export CSV pour toutes les évaluations
+  const exportAllAuditsToCSV = () => {
+    if (!org || !org.audits || org.audits.length === 0) return;
+    
+    const headers = ['Organisation', 'Date', 'Titre', 'Score Global (%)', 'EDM', 'APO', 'BAI', 'DSS', 'MEA'];
+    const rows = org.audits.map(audit => [
+      org.name,
+      audit.date,
+      audit.title,
+      audit.score.toString(),
+      audit.domainScores?.EDM?.toString() || '0',
+      audit.domainScores?.APO?.toString() || '0',
+      audit.domainScores?.BAI?.toString() || '0',
+      audit.domainScores?.DSS?.toString() || '0',
+      audit.domainScores?.MEA?.toString() || '0',
+    ].join(';'));
+    
+    const csvContent = [headers.join(';'), ...rows].join('\n');
+    downloadCSV(csvContent, `evaluations_${org.name}_toutes.csv`);
+  };
+
+  // Utilitaire pour télécharger le CSV
+  const downloadCSV = (content: string, filename: string) => {
+    const BOM = '\uFEFF'; // Pour supporter les caractères spéciaux dans Excel
+    const blob = new Blob([BOM + content], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', filename);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const iconFor = (key: string) => {
     switch (key) {
       case 'EDM':
@@ -252,7 +319,7 @@ export default function OrganizationDashboard() {
               <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-4 rounded-lg">
                 <p className="text-xs text-purple-600 font-medium mb-1">💼 Chiffre d&apos;affaires</p>
                 <p className="text-sm font-semibold text-gray-800">
-                  {org.revenue ? `${(org.revenue / 1000000).toFixed(1)}M €` : 'N/A'}
+                  {org.revenue ? `${new Intl.NumberFormat('fr-FR').format(org.revenue)} FCFA` : 'N/A'}
                 </p>
                 <p className="text-xs text-gray-600">annuel</p>
               </div>
@@ -328,8 +395,47 @@ export default function OrganizationDashboard() {
           {/* Historique et Radar - Section divisée en 2 colonnes */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full">
             <div className="bg-white card-soft p-6">
-              <h3 className="text-lg font-semibold mb-4">Historique des audits</h3>
-              <AnimatedList items={(org.audits || []).map(a => `${a.date} — ${a.title} (${a.score}%)`)} />
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">Historique des audits</h3>
+                {canExportData && org.audits && org.audits.length > 0 && (
+                  <button
+                    onClick={exportAllAuditsToCSV}
+                    className="flex items-center gap-2 px-3 py-1.5 text-sm bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100 transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    Exporter CSV
+                  </button>
+                )}
+              </div>
+              
+              {/* Liste des audits avec bouton d'export individuel */}
+              {org.audits && org.audits.length > 0 ? (
+                <div className="space-y-2">
+                  {org.audits.map((audit) => (
+                    <div key={audit.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                      <div className="flex-1">
+                        <div className="text-sm font-medium text-gray-800">{audit.date} — {audit.title}</div>
+                        <div className="text-xs text-gray-500">Score: {audit.score}%</div>
+                      </div>
+                      {canExportData && (
+                        <button
+                          onClick={() => exportAuditToCSV(audit)}
+                          className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded transition-colors"
+                          title="Exporter cette évaluation"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500">Aucune évaluation pour le moment.</p>
+              )}
               
               {/* Section de sélection pour comparaison */}
               {org.audits && org.audits.length >= 2 && (
@@ -531,7 +637,8 @@ export default function OrganizationDashboard() {
           )}
         </div>
 
-        {/* Recommandations IA améliorées */}
+        {/* Recommandations IA améliorées - Seulement si l'organisation a été évaluée */}
+        {hasBeenEvaluated ? (
         <div className="mt-6 space-y-6">
           {/* Résumé et Analyse IA */}
           {aiRecommendations && (
@@ -723,6 +830,23 @@ export default function OrganizationDashboard() {
             </div>
           )}
         </div>
+        ) : (
+          <div className="mt-6 bg-amber-50 border border-amber-200 rounded-xl p-6 text-center">
+            <div className="text-4xl mb-3">📋</div>
+            <h3 className="text-lg font-semibold text-amber-800 mb-2">Aucune évaluation effectuée</h3>
+            <p className="text-amber-700 mb-4">
+              Cette organisation n&apos;a pas encore été évaluée. Lancez une analyse pour obtenir des recommandations personnalisées.
+            </p>
+            {canRunQCM && (
+              <button 
+                onClick={() => router.push(`/organizations/${org.id}/qcm`)}
+                className="px-6 py-3 rounded-lg btn-gradient text-white font-medium"
+              >
+                🚀 Démarrer une évaluation
+              </button>
+            )}
+          </div>
+        )}
 
         <footer className="py-10 text-center text-gray-500 text-sm">© {new Date().getFullYear()} Maturis – {org.name}</footer>
       </div>

@@ -57,30 +57,31 @@ export default function AdminPanel() {
               <h3 className="font-semibold text-purple-700 mb-2">👑 Admin</h3>
               <ul className="text-sm text-gray-600 space-y-1">
                 <li>✓ Gestion complète du système</li>
-                <li>✓ Création/suppression d&apos;organisations</li>
                 <li>✓ Gestion des utilisateurs</li>
-                <li>✓ Exécution des analyses QCM</li>
-                <li>✓ Export des données</li>
-              </ul>
-            </div>
-            <div className="p-4 bg-green-50 rounded-lg">
-              <h3 className="font-semibold text-green-700 mb-2">📊 Évaluateur</h3>
-              <ul className="text-sm text-gray-600 space-y-1">
-                <li>✓ Création d&apos;organisations</li>
-                <li>✓ Exécution des analyses QCM</li>
-                <li>✓ Modification des organisations</li>
-                <li>✓ Consultation des dashboards</li>
+                <li>✓ Gestion des organisations</li>
+                <li>✓ Exécution des évaluations</li>
+                <li>✓ Consultation des résultats</li>
                 <li>✓ Export des données</li>
               </ul>
             </div>
             <div className="p-4 bg-blue-50 rounded-lg">
               <h3 className="font-semibold text-blue-700 mb-2">👔 Décideur</h3>
               <ul className="text-sm text-gray-600 space-y-1">
-                <li>✓ Consultation des organisations</li>
-                <li>✓ Consultation des dashboards</li>
+                <li>✓ Gestion des organisations</li>
+                <li>✓ Exécution des évaluations</li>
+                <li>✓ Consultation des résultats</li>
                 <li>✓ Export des données</li>
-                <li>✗ Pas de création/modification</li>
-                <li>✗ Pas d&apos;analyse QCM</li>
+                <li>✗ Pas de gestion des utilisateurs</li>
+              </ul>
+            </div>
+            <div className="p-4 bg-green-50 rounded-lg">
+              <h3 className="font-semibold text-green-700 mb-2">📊 Évaluateur</h3>
+              <ul className="text-sm text-gray-600 space-y-1">
+                <li>✓ Voir les organisations assignées</li>
+                <li>✓ Lancer des évaluations</li>
+                <li>✗ Pas d&apos;accès aux résultats</li>
+                <li>✗ Pas d&apos;export</li>
+                <li>✗ Pas de gestion des organisations</li>
               </ul>
             </div>
           </div>

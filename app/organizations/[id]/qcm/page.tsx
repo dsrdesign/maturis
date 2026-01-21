@@ -242,7 +242,8 @@ export default function QcmPage() {
     });
 
     setSubmitted(true);
-    setTimeout(() => router.push(`/organizations/${id}`), 2000);
+    // Les évaluateurs retournent à la liste, les autres au dashboard
+    setTimeout(() => router.push('/organizations'), 2000);
   }
 
   if (submitted) {
@@ -256,7 +257,7 @@ export default function QcmPage() {
           </div>
           <h2 className="text-2xl font-bold mb-3 text-gray-800">Analyse terminée !</h2>
           <p className="text-gray-600 mb-2">Vos réponses ont été enregistrées avec succès.</p>
-          <p className="text-sm text-gray-500">Redirection vers le dashboard...</p>
+          <p className="text-sm text-gray-500">Redirection en cours...</p>
         </div>
       </div>
     );

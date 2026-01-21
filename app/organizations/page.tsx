@@ -16,11 +16,27 @@ const domainLabels: Record<DomainKey, string> = {
   MEA: 'Surveiller, Évaluer et Apprécier'
 };
 
+// Villes par pays
+const citiesByCountry: Record<string, string[]> = {
+  'Cameroun': ['Douala', 'Yaoundé', 'Bafoussam', 'Garoua', 'Bamenda', 'Maroua', 'Ngaoundéré', 'Bertoua', 'Limbé', 'Kribi'],
+  'Sénégal': ['Dakar', 'Thiès', 'Saint-Louis', 'Kaolack', 'Ziguinchor', 'Mbour', 'Rufisque', 'Tambacounda'],
+  "Côte d'Ivoire": ['Abidjan', 'Bouaké', 'Yamoussoukro', 'San-Pédro', 'Daloa', 'Korhogo', 'Man', 'Divo'],
+  'Gabon': ['Libreville', 'Port-Gentil', 'Franceville', 'Oyem', 'Moanda', 'Lambaréné'],
+  'Congo': ['Brazzaville', 'Pointe-Noire', 'Dolisie', 'Nkayi', 'Ouesso', 'Owando'],
+  'Mali': ['Bamako', 'Sikasso', 'Mopti', 'Koutiala', 'Kayes', 'Ségou', 'Gao', 'Tombouctou'],
+  'Burkina Faso': ['Ouagadougou', 'Bobo-Dioulasso', 'Koudougou', 'Banfora', 'Ouahigouya', 'Fada'],
+  'Bénin': ['Cotonou', 'Porto-Novo', 'Parakou', 'Abomey-Calavi', 'Djougou', 'Bohicon'],
+  'Togo': ['Lomé', 'Sokodé', 'Kara', 'Kpalimé', 'Atakpamé', 'Dapaong'],
+  'Niger': ['Niamey', 'Zinder', 'Maradi', 'Agadez', 'Tahoua', 'Dosso'],
+  'Guinée': ['Conakry', 'Nzérékoré', 'Kankan', 'Kindia', 'Labé', 'Mamou'],
+  'Autre': [],
+};
+
 export default function OrganizationsPage() {
   const router = useRouter();
   const { user, isLoading } = useAuth();
   const { filteredOrganizations, addOrganization, deleteOrganization } = useOrganizations();
-  const { canCreateOrganization, canRunQCM, canDeleteOrganization } = usePermissions();
+  const { canCreateOrganization, canRunQCM, canDeleteOrganization, canViewResults } = usePermissions();
   const [showModal, setShowModal] = useState(false);
   const [useCustomWeights, setUseCustomWeights] = useState(false);
   const [form, setForm] = useState({
@@ -155,10 +171,12 @@ export default function OrganizationsPage() {
                     {org.city && org.country ? `📍 ${org.city}, ${org.country}` : ''}
                   </p>
                 </div>
-                <div className="text-right">
-                  <p className="text-xs text-gray-400">Score</p>
-                  <p className="text-lg font-bold text-[#3B6BFF]">{org.score}%</p>
-                </div>
+                {canViewResults && (
+                  <div className="text-right">
+                    <p className="text-xs text-gray-400">Score</p>
+                    <p className="text-lg font-bold text-[#3B6BFF]">{org.score}%</p>
+                  </div>
+                )}
               </div>
 
               <p className="text-sm text-gray-500 mb-3">{org.description}</p>
@@ -179,15 +197,19 @@ export default function OrganizationsPage() {
                 )}
               </div>
 
-              <div className="flex items-center justify-between pt-3 border-t">
-                <div>
-                  <p className="text-xs text-gray-400">Dernier audit</p>
-                  <p className="text-sm font-medium">{org.lastAudit}</p>
+              {canViewResults && (
+                <div className="flex items-center justify-between pt-3 border-t">
+                  <div>
+                    <p className="text-xs text-gray-400">Dernier audit</p>
+                    <p className="text-sm font-medium">{org.lastAudit}</p>
+                  </div>
                 </div>
-              </div>
+              )}
 
                 <div className="flex gap-3 mt-4">
-                  <button onClick={() => router.push(`/organizations/${org.id}`)} className="flex-1 px-3 py-2 text-sm rounded-lg bg-gray-50 hover:bg-gray-100">Voir</button>
+                  {canViewResults && (
+                    <button onClick={() => router.push(`/organizations/${org.id}`)} className="flex-1 px-3 py-2 text-sm rounded-lg bg-gray-50 hover:bg-gray-100">Voir</button>
+                  )}
                   {/* Bouton Analyser visible si l'utilisateur a la permission */}
                   {canRunQCM && (
                     <button onClick={() => router.push(`/organizations/${org.id}/qcm`)} className="flex-1 px-3 py-2 text-sm rounded-lg btn-gradient text-white">Analyser</button>
@@ -257,7 +279,15 @@ export default function OrganizationsPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <select 
                     value={form.country} 
-                    onChange={(e) => setForm(f => ({...f, country: e.target.value}))} 
+                    onChange={(e) => {
+                      const newCountry = e.target.value;
+                      const cities = citiesByCountry[newCountry] || [];
+                      setForm(f => ({
+                        ...f, 
+                        country: newCountry,
+                        city: cities[0] || ''
+                      }));
+                    }} 
                     className="border rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
                     <option value="Cameroun">Cameroun</option>
@@ -273,13 +303,27 @@ export default function OrganizationsPage() {
                     <option value="Guinée">Guinée</option>
                     <option value="Autre">Autre</option>
                   </select>
-                  <input 
-                    required 
-                    value={form.city} 
-                    onChange={(e) => setForm(f => ({...f, city: e.target.value}))} 
-                    placeholder="Ville *" 
-                    className="border rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
-                  />
+                  {citiesByCountry[form.country]?.length > 0 ? (
+                    <select 
+                      required
+                      value={form.city} 
+                      onChange={(e) => setForm(f => ({...f, city: e.target.value}))} 
+                      className="border rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="">Sélectionnez une ville *</option>
+                      {citiesByCountry[form.country].map(city => (
+                        <option key={city} value={city}>{city}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input 
+                      required 
+                      value={form.city} 
+                      onChange={(e) => setForm(f => ({...f, city: e.target.value}))} 
+                      placeholder="Ville *" 
+                      className="border rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+                    />
+                  )}
                 </div>
               </div>
 
@@ -300,15 +344,15 @@ export default function OrganizationsPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm text-gray-600 mb-1">Chiffre d&apos;affaires (€) *</label>
+                    <label className="block text-sm text-gray-600 mb-1">Chiffre d&apos;affaires (FCFA) *</label>
                     <input 
                       required 
                       type="number" 
                       min="0"
-                      step="0.01"
+                      step="1"
                       value={form.revenue} 
                       onChange={(e) => setForm(f => ({...f, revenue: e.target.value}))} 
-                      placeholder="Ex: 1000000" 
+                      placeholder="Ex: 100000000" 
                       className="border rounded-lg p-3 w-full focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
                     />
                   </div>

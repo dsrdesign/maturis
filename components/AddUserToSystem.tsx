@@ -3,9 +3,9 @@ import { useSystemUsers, useSystem, useOrganizations } from '../app/lib/store';
 import { UserRole } from '../app/lib/types';
 
 const roleDescriptions: Record<UserRole, string> = {
-  admin: 'Accès complet : gestion des utilisateurs, organisations et analyses',
-  decideur: 'Consultation uniquement : voir les dashboards et exporter les données',
-  evaluation: 'Analyste : créer des organisations et effectuer des analyses QCM',
+  admin: 'Accès complet : gestion des utilisateurs, organisations et évaluations',
+  decideur: 'Gestion des organisations et des évaluations (résultats + export)',
+  evaluation: 'Lancer des évaluations uniquement (sans accès aux résultats)',
 };
 
 export default function AddUserToSystem() {

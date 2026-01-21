@@ -152,6 +152,7 @@ type AppState = {
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   register: (name: string, email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
+  updateUser: (userId: string, updates: Partial<User>) => void;
   
   // Actions Organisations
   addOrganization: (org: Organization) => void;
@@ -340,6 +341,22 @@ export const useStore = create<AppState>()(
 
       logout: () => {
         set({ user: null, isAuthenticated: false });
+      },
+
+      updateUser: (userId: string, updates: Partial<User>) => {
+        set((state) => {
+          const updatedUsers = state.users.map(u =>
+            u.id === userId ? { ...u, ...updates } : u
+          );
+          // Si c'est l'utilisateur connecté, mettre à jour aussi state.user
+          const updatedCurrentUser = state.user?.id === userId
+            ? { ...state.user, ...updates }
+            : state.user;
+          return {
+            users: updatedUsers,
+            user: updatedCurrentUser,
+          };
+        });
       },
 
       // Actions Organisations
@@ -554,6 +571,7 @@ export const usePermissions = () => {
     canViewOrganization: can('canViewOrganization'),
     canRunQCM: can('canRunQCM'),
     canViewDashboard: can('canViewDashboard'),
+    canViewResults: can('canViewResults'),
     canManageUsers: can('canManageUsers'),
     canManageSystem: can('canManageSystem'),
     canExportData: can('canExportData'),
