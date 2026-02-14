@@ -124,6 +124,13 @@ type Organization = {
       DSS: number;
       MEA: number;
     };
+    responses?: Array<{
+      domain: string;
+      questionText: string;
+      selectedAnswer: string;
+      answerValue: number;
+      scaleMax: number;
+    }>;
   }>;
 };
 

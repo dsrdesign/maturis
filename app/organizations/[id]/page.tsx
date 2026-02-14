@@ -3,6 +3,7 @@ import { useRouter, useParams } from "next/navigation";
 import { useState, useEffect } from "react";
 import { useOrganizations, usePermissions } from "../../lib/store";
 import { computeGlobalScore, cobitLevelFromScore, getWeightsForSector } from "../../lib/score";
+import { exportAuditToPDF, exportAllAuditsToPDF } from "../../lib/exportPDF";
 import dynamic from 'next/dynamic';
 const RadarChart = dynamic(() => import('../../../components/RadarChart'), { ssr: false });
 const AnimatedList = dynamic(() => import('../../../components/AnimatedList'), { ssr: false });
@@ -190,6 +191,10 @@ export default function OrganizationDashboard() {
   const exportAuditToCSV = (audit: typeof org.audits[0]) => {
     if (!org) return;
     
+    const sections: string[] = [];
+    
+    // Section 1 : Résumé de l'audit
+    sections.push('=== RÉSUMÉ DE L\'ÉVALUATION ===');
     const headers = ['Organisation', 'Date', 'Titre', 'Score Global (%)', 'EDM', 'APO', 'BAI', 'DSS', 'MEA'];
     const values = [
       org.name,
@@ -202,8 +207,70 @@ export default function OrganizationDashboard() {
       audit.domainScores?.DSS?.toString() || '0',
       audit.domainScores?.MEA?.toString() || '0',
     ];
+    sections.push(headers.join(';'));
+    sections.push(values.join(';'));
     
-    const csvContent = [headers.join(';'), values.join(';')].join('\n');
+    // Section 2 : Réponses détaillées
+    if (audit.responses && audit.responses.length > 0) {
+      sections.push('');
+      sections.push('=== RÉPONSES DÉTAILLÉES ===');
+      const respHeaders = ['Domaine', 'Question', 'Réponse sélectionnée', 'Valeur', 'Échelle max'];
+      sections.push(respHeaders.join(';'));
+      for (const resp of audit.responses) {
+        const row = [
+          resp.domain,
+          `"${resp.questionText.replace(/"/g, '""')}"`,
+          `"${resp.selectedAnswer.replace(/"/g, '""')}"`,
+          resp.answerValue.toString(),
+          resp.scaleMax.toString(),
+        ];
+        sections.push(row.join(';'));
+      }
+    }
+    
+    // Section 3 : Recommandations IA
+    if (aiRecommendations) {
+      sections.push('');
+      sections.push('=== RECOMMANDATIONS IA ===');
+      sections.push(`Résumé;${aiRecommendations.summary ? `"${aiRecommendations.summary.replace(/"/g, '""')}"` : ''}`);
+      sections.push(`Analyse de maturité;${aiRecommendations.maturityAnalysis ? `"${aiRecommendations.maturityAnalysis.replace(/"/g, '""')}"` : ''}`);
+      
+      sections.push('');
+      sections.push('--- Actions recommandées ---');
+      const recHeaders = ['Domaine', 'Nom du domaine', 'Score', 'Priorité', 'Action', 'Description', 'Impact', 'Effort', 'Délai'];
+      sections.push(recHeaders.join(';'));
+      for (const rec of aiRecommendations.recommendations) {
+        for (const action of rec.actions) {
+          const row = [
+            rec.domain,
+            rec.domainName,
+            rec.score.toString(),
+            rec.priority,
+            `"${action.title.replace(/"/g, '""')}"`,
+            `"${action.description.replace(/"/g, '""')}"`,
+            `"${action.impact.replace(/"/g, '""')}"`,
+            action.effort,
+            `"${action.timeline.replace(/"/g, '""')}"`,
+          ];
+          sections.push(row.join(';'));
+        }
+      }
+      
+      // Quick Wins
+      const allQuickWins = aiRecommendations.recommendations.flatMap(r => 
+        r.quickWins.map(qw => ({ domain: r.domain, quickWin: qw }))
+      );
+      if (allQuickWins.length > 0) {
+        sections.push('');
+        sections.push('--- Quick Wins ---');
+        sections.push('Domaine;Action rapide');
+        for (const qw of allQuickWins) {
+          sections.push(`${qw.domain};"${qw.quickWin.replace(/"/g, '""')}"`);
+        }
+      }
+    }
+    
+    const csvContent = sections.join('\n');
     downloadCSV(csvContent, `evaluation_${org.name}_${audit.date}.csv`);
   };
 
@@ -211,20 +278,91 @@ export default function OrganizationDashboard() {
   const exportAllAuditsToCSV = () => {
     if (!org || !org.audits || org.audits.length === 0) return;
     
-    const headers = ['Organisation', 'Date', 'Titre', 'Score Global (%)', 'EDM', 'APO', 'BAI', 'DSS', 'MEA'];
-    const rows = org.audits.map(audit => [
-      org.name,
-      audit.date,
-      audit.title,
-      audit.score.toString(),
-      audit.domainScores?.EDM?.toString() || '0',
-      audit.domainScores?.APO?.toString() || '0',
-      audit.domainScores?.BAI?.toString() || '0',
-      audit.domainScores?.DSS?.toString() || '0',
-      audit.domainScores?.MEA?.toString() || '0',
-    ].join(';'));
+    const sections: string[] = [];
     
-    const csvContent = [headers.join(';'), ...rows].join('\n');
+    // Section 1 : Résumé de toutes les évaluations
+    sections.push('=== RÉSUMÉ DES ÉVALUATIONS ===');
+    const headers = ['Organisation', 'Date', 'Titre', 'Score Global (%)', 'EDM', 'APO', 'BAI', 'DSS', 'MEA'];
+    sections.push(headers.join(';'));
+    for (const audit of org.audits) {
+      const row = [
+        org.name,
+        audit.date,
+        audit.title,
+        audit.score.toString(),
+        audit.domainScores?.EDM?.toString() || '0',
+        audit.domainScores?.APO?.toString() || '0',
+        audit.domainScores?.BAI?.toString() || '0',
+        audit.domainScores?.DSS?.toString() || '0',
+        audit.domainScores?.MEA?.toString() || '0',
+      ];
+      sections.push(row.join(';'));
+    }
+    
+    // Section 2 : Réponses détaillées par audit
+    const auditsWithResponses = org.audits.filter(a => a.responses && a.responses.length > 0);
+    if (auditsWithResponses.length > 0) {
+      sections.push('');
+      sections.push('=== RÉPONSES DÉTAILLÉES ===');
+      const respHeaders = ['Date audit', 'Domaine', 'Question', 'Réponse sélectionnée', 'Valeur', 'Échelle max'];
+      sections.push(respHeaders.join(';'));
+      for (const audit of auditsWithResponses) {
+        for (const resp of audit.responses!) {
+          const row = [
+            audit.date,
+            resp.domain,
+            `"${resp.questionText.replace(/"/g, '""')}"`,
+            `"${resp.selectedAnswer.replace(/"/g, '""')}"`,
+            resp.answerValue.toString(),
+            resp.scaleMax.toString(),
+          ];
+          sections.push(row.join(';'));
+        }
+      }
+    }
+    
+    // Section 3 : Recommandations IA (état actuel)
+    if (aiRecommendations) {
+      sections.push('');
+      sections.push('=== RECOMMANDATIONS IA (actuelles) ===');
+      sections.push(`Résumé;${aiRecommendations.summary ? `"${aiRecommendations.summary.replace(/"/g, '""')}"` : ''}`);
+      sections.push(`Analyse de maturité;${aiRecommendations.maturityAnalysis ? `"${aiRecommendations.maturityAnalysis.replace(/"/g, '""')}"` : ''}`);
+      
+      sections.push('');
+      sections.push('--- Actions recommandées ---');
+      const recHeaders = ['Domaine', 'Nom du domaine', 'Score', 'Priorité', 'Action', 'Description', 'Impact', 'Effort', 'Délai'];
+      sections.push(recHeaders.join(';'));
+      for (const rec of aiRecommendations.recommendations) {
+        for (const action of rec.actions) {
+          const row = [
+            rec.domain,
+            rec.domainName,
+            rec.score.toString(),
+            rec.priority,
+            `"${action.title.replace(/"/g, '""')}"`,
+            `"${action.description.replace(/"/g, '""')}"`,
+            `"${action.impact.replace(/"/g, '""')}"`,
+            action.effort,
+            `"${action.timeline.replace(/"/g, '""')}"`,
+          ];
+          sections.push(row.join(';'));
+        }
+      }
+      
+      const allQuickWins = aiRecommendations.recommendations.flatMap(r => 
+        r.quickWins.map(qw => ({ domain: r.domain, quickWin: qw }))
+      );
+      if (allQuickWins.length > 0) {
+        sections.push('');
+        sections.push('--- Quick Wins ---');
+        sections.push('Domaine;Action rapide');
+        for (const qw of allQuickWins) {
+          sections.push(`${qw.domain};"${qw.quickWin.replace(/"/g, '""')}"`);
+        }
+      }
+    }
+    
+    const csvContent = sections.join('\n');
     downloadCSV(csvContent, `evaluations_${org.name}_toutes.csv`);
   };
 
@@ -398,15 +536,26 @@ export default function OrganizationDashboard() {
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold">Historique des audits</h3>
                 {canExportData && org.audits && org.audits.length > 0 && (
-                  <button
-                    onClick={exportAllAuditsToCSV}
-                    className="flex items-center gap-2 px-3 py-1.5 text-sm bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100 transition-colors"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                    </svg>
-                    Exporter CSV
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => exportAllAuditsToPDF(org, aiRecommendations)}
+                      className="flex items-center gap-2 px-3 py-1.5 text-sm bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                      </svg>
+                      PDF
+                    </button>
+                    <button
+                      onClick={exportAllAuditsToCSV}
+                      className="flex items-center gap-2 px-3 py-1.5 text-sm bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100 transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                      CSV
+                    </button>
+                  </div>
                 )}
               </div>
               
@@ -420,15 +569,26 @@ export default function OrganizationDashboard() {
                         <div className="text-xs text-gray-500">Score: {audit.score}%</div>
                       </div>
                       {canExportData && (
-                        <button
-                          onClick={() => exportAuditToCSV(audit)}
-                          className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded transition-colors"
-                          title="Exporter cette évaluation"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                          </svg>
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => exportAuditToPDF(org, audit, aiRecommendations)}
+                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                            title="Exporter en PDF"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() => exportAuditToCSV(audit)}
+                            className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded transition-colors"
+                            title="Exporter en CSV"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                          </button>
+                        </div>
                       )}
                     </div>
                   ))}

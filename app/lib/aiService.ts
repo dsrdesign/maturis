@@ -83,6 +83,21 @@ const sectorContexts: Record<string, {
   },
 };
 
+// Utilitaire: mélange aléatoire d'un tableau (Fisher-Yates)
+function shuffleArray<T>(arr: T[]): T[] {
+  const shuffled = [...arr];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}
+
+// Utilitaire: sélectionne N éléments aléatoires d'un tableau
+function pickRandom<T>(arr: T[], count: number): T[] {
+  return shuffleArray(arr).slice(0, count);
+}
+
 // Analyse des scores précédents pour identifier les domaines à améliorer
 function analyzeScores(scores: AIContext['previousScores']): DomainInsight[] {
   if (!scores) return [];
@@ -152,21 +167,23 @@ export function generateQuestionSuggestions(
 
     // Ajouter un indice contextuel basé sur le secteur
     if (sectorContext) {
-      const relevantRegulation = sectorContext.regulations.find(() => 
+      const relevantRegulations = sectorContext.regulations.filter(() => 
         question.text.toLowerCase().includes('conformité') || 
         question.text.toLowerCase().includes('norme') ||
         question.text.toLowerCase().includes('réglementaire')
       );
-      if (relevantRegulation) {
+      if (relevantRegulations.length > 0) {
+        const relevantRegulation = pickRandom(relevantRegulations, 1)[0];
         contextHint = `💡 Pensez à ${relevantRegulation} pour votre secteur`;
         relevanceScore = 0.9;
       }
 
-      const relevantRisk = sectorContext.keyRisks.find(() => 
+      const relevantRisks = sectorContext.keyRisks.filter(() => 
         question.text.toLowerCase().includes('risque') || 
         question.text.toLowerCase().includes('sécurité')
       );
-      if (relevantRisk) {
+      if (relevantRisks.length > 0) {
+        const relevantRisk = pickRandom(relevantRisks, 1)[0];
         contextHint = contextHint || `⚠️ Risque clé dans votre secteur: ${relevantRisk}`;
         relevanceScore = 0.9;
       }
@@ -209,31 +226,61 @@ export function generateDomainRecommendations(
   const sectorContext = sectorContexts[sectorKey];
   const previousScore = context.previousScores?.[domainCode as keyof typeof context.previousScores];
 
-  // Recommandations basées sur le score précédent
+  // Recommandations basées sur le score précédent (variées)
   if (previousScore !== undefined) {
     if (previousScore < 2) {
-      recommendations.push(`⚠️ Score précédent critique (${previousScore}/5). Concentrez-vous sur les fondamentaux.`);
+      const criticalTips = [
+        `⚠️ Score précédent critique (${previousScore}/5). Concentrez-vous sur les fondamentaux.`,
+        `🔴 Niveau ${previousScore}/5 détecté. Priorisez la mise en place de processus de base.`,
+        `⚠️ Attention: score ${previousScore}/5. Un plan d'action rapide est nécessaire.`,
+      ];
+      recommendations.push(pickRandom(criticalTips, 1)[0]);
     } else if (previousScore < 3) {
-      recommendations.push(`📈 Score précédent: ${previousScore}/5. Opportunité d'amélioration significative.`);
+      const improveTips = [
+        `📈 Score précédent: ${previousScore}/5. Opportunité d'amélioration significative.`,
+        `🔧 Niveau ${previousScore}/5. Formalisez les pratiques existantes pour progresser.`,
+        `📊 Score ${previousScore}/5. Structurez vos processus pour passer au niveau supérieur.`,
+      ];
+      recommendations.push(pickRandom(improveTips, 1)[0]);
     } else if (previousScore >= 4) {
-      recommendations.push(`✅ Excellent score précédent (${previousScore}/5). Visez l'excellence continue.`);
+      const excellentTips = [
+        `✅ Excellent score précédent (${previousScore}/5). Visez l'excellence continue.`,
+        `🏆 Score ${previousScore}/5. Maintenez ce niveau et partagez les bonnes pratiques.`,
+        `⭐ Performance ${previousScore}/5. Capitalisez sur cette maturité pour innover.`,
+      ];
+      recommendations.push(pickRandom(excellentTips, 1)[0]);
     }
   }
 
-  // Recommandations sectorielles
+  // Recommandations sectorielles (sélection aléatoire parmi focus + risques)
   if (sectorContext) {
-    const relevantFocus = sectorContext.focusAreas[Math.floor(Math.random() * sectorContext.focusAreas.length)];
-    recommendations.push(`🎯 Point d'attention pour votre secteur: ${relevantFocus}`);
+    const allSectorItems = [
+      ...sectorContext.focusAreas.map(f => `🎯 Point d'attention: ${f}`),
+      ...sectorContext.keyRisks.map(r => `⚠️ Risque sectoriel: ${r}`),
+      ...sectorContext.regulations.map(r => `📋 Conformité: vérifiez votre alignement avec ${r}`),
+    ];
+    const selected = pickRandom(allSectorItems, 1 + Math.floor(Math.random() * 2));
+    recommendations.push(...selected);
   }
 
-  // Recommandations basées sur la taille de l'organisation
+  // Recommandations basées sur la taille de l'organisation (variées)
   if (context.organization.employees > 500) {
-    recommendations.push(`🏢 Grande organisation: importance accrue de la gouvernance formelle`);
+    const largeTips = [
+      `🏢 Grande organisation: importance accrue de la gouvernance formelle`,
+      `🏢 Avec ${context.organization.employees} employés, misez sur l'automatisation des processus IT`,
+      `🏢 Structure importante: pensez à la délégation et aux comités de pilotage`,
+    ];
+    recommendations.push(pickRandom(largeTips, 1)[0]);
   } else if (context.organization.employees < 50) {
-    recommendations.push(`🚀 PME: privilégiez les solutions pragmatiques et évolutives`);
+    const smallTips = [
+      `🚀 PME: privilégiez les solutions pragmatiques et évolutives`,
+      `🚀 Petite structure: optez pour des outils simples et polyvalents`,
+      `🚀 Avec ${context.organization.employees} employés, concentrez-vous sur l'essentiel`,
+    ];
+    recommendations.push(pickRandom(smallTips, 1)[0]);
   }
 
-  return recommendations;
+  return shuffleArray(recommendations);
 }
 
 // Calcule un score de maturité prédictif
@@ -287,36 +334,65 @@ export function generateFollowUpQuestions(
   const sectorKey = context.organization.sector === 'bank' ? 'finance' : context.organization.sector;
   const sectorContext = sectorContexts[sectorKey];
 
+  // Pool de questions de suivi par domaine (variées)
+  const followUpPool: Record<string, string[]> = {
+    EDM: [
+      'Avez-vous identifié un sponsor exécutif pour la gouvernance IT?',
+      'La direction générale participe-t-elle aux revues IT stratégiques?',
+      'Un tableau de bord de gouvernance IT est-il présenté au comité de direction?',
+      'Les décisions IT majeures sont-elles tracées et documentées?',
+      'Comment les parties prenantes sont-elles informées des résultats IT?',
+    ],
+    APO: [
+      'Un plan d\'action pour l\'alignement stratégique est-il envisagé?',
+      'Disposez-vous d\'une roadmap technologique à moyen terme?',
+      'Les besoins métier sont-ils régulièrement collectés et priorisés?',
+      'Comment évaluez-vous le retour sur investissement des projets IT?',
+      'La gestion des compétences IT est-elle anticipée (GPEC)?',
+    ],
+    BAI: [
+      'Des ressources sont-elles allouées pour améliorer les processus de mise en œuvre?',
+      'Utilisez-vous une méthodologie projet reconnue (Agile, PRINCE2, etc.)?',
+      'Les retours d\'expérience projet sont-ils capitalisés?',
+      'Comment gérez-vous les dépendances entre projets IT?',
+      'Les critères d\'acceptation sont-ils définis avant le démarrage des projets?',
+    ],
+    DSS: [
+      'Une revue des procédures opérationnelles est-elle planifiée?',
+      'Vos temps de résolution d\'incidents respectent-ils les SLA définis?',
+      'Disposez-vous d\'un processus d\'escalade formalisé?',
+      'La satisfaction des utilisateurs IT est-elle mesurée régulièrement?',
+      'Les procédures de sauvegarde et restauration sont-elles testées?',
+    ],
+    MEA: [
+      'Des indicateurs de performance sont-ils en cours de définition?',
+      'Réalisez-vous des auto-évaluations de maturité IT périodiques?',
+      'Les recommandations d\'audits précédents ont-elles été suivies?',
+      'Comment assurez-vous la veille réglementaire IT?',
+      'Existe-t-il un processus de revue de conformité interne?',
+    ],
+  };
+
   // Analyser les réponses négatives pour suggérer des actions
   for (const [questionId, answer] of Object.entries(answeredQuestions)) {
     if (answer <= 1) {
       const domain = questionId.slice(0, 3);
-      switch (domain) {
-        case 'EDM':
-          followUps.push('Avez-vous identifié un sponsor exécutif pour la gouvernance IT?');
-          break;
-        case 'APO':
-          followUps.push('Un plan d\'action pour l\'alignement stratégique est-il envisagé?');
-          break;
-        case 'BAI':
-          followUps.push('Des ressources sont-elles allouées pour améliorer les processus de mise en œuvre?');
-          break;
-        case 'DSS':
-          followUps.push('Une revue des procédures opérationnelles est-elle planifiée?');
-          break;
-        case 'MEA':
-          followUps.push('Des indicateurs de performance sont-ils en cours de définition?');
-          break;
+      const pool = followUpPool[domain];
+      if (pool) {
+        // Sélectionner une question aléatoire du pool pour ce domaine
+        const selected = pickRandom(pool, 1)[0];
+        followUps.push(selected);
       }
     }
   }
 
-  // Ajouter des questions sectorielles
+  // Ajouter des questions sectorielles (aléatoire parmi les focus areas)
   if (sectorContext && sectorContext.focusAreas.length > 0) {
-    followUps.push(`Comment adressez-vous ${sectorContext.focusAreas[0]} dans votre organisation?`);
+    const randomFocus = pickRandom(sectorContext.focusAreas, 1)[0];
+    followUps.push(`Comment adressez-vous ${randomFocus} dans votre organisation?`);
   }
 
-  return [...new Set(followUps)].slice(0, 3); // Retourner max 3 questions uniques
+  return [...new Set(shuffleArray(followUps))].slice(0, 3); // Retourner max 3 questions uniques
 }
 
 const aiService = {

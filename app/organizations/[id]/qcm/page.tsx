@@ -222,6 +222,28 @@ export default function QcmPage() {
     const global = computeGlobalScore(domainScores, org.sector, org.domainWeights) || 0;
     const percent = Math.round((global / 5) * 100);
 
+    // Construire les réponses détaillées pour l'export
+    const responses: Array<{
+      domain: string;
+      questionText: string;
+      selectedAnswer: string;
+      answerValue: number;
+      scaleMax: number;
+    }> = [];
+    for (const domain of aiDomains) {
+      for (const q of domain.questions) {
+        const raw = answers[q.id];
+        const selectedOpt = q.options.find(opt => opt.value === raw);
+        responses.push({
+          domain: domain.code,
+          questionText: q.text,
+          selectedAnswer: selectedOpt?.label || String(raw),
+          answerValue: typeof raw === 'number' ? raw : 0,
+          scaleMax: q.scaleMax,
+        });
+      }
+    }
+
     // Créer un nouvel audit avec un ID basé sur le contenu
     const dateNow = new Date();
     const date = dateNow.toISOString().slice(0, 10);
@@ -230,7 +252,9 @@ export default function QcmPage() {
       id: auditId,
       date,
       score: percent,
-      title: 'Analyse COBIT IA'
+      title: 'Analyse COBIT IA',
+      domainScores,
+      responses,
     };
 
     // Mettre à jour l'organisation dans le store

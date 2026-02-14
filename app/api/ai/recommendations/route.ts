@@ -63,6 +63,25 @@ async function generateRecommendationsWithAI(request: RecommendationsRequest): P
   const weakDomains = sortedDomains.filter(d => d.score < 3);
   const strongDomains = sortedDomains.filter(d => d.score >= 4);
 
+  // Angles de variation pour diversifier les recommandations
+  const recommendationAngles = [
+    'gouvernance et pilotage stratégique',
+    'processus opérationnels et automatisation',
+    'compétences humaines et conduite du changement',
+    'outils technologiques et modernisation',
+    'gestion des risques et résilience',
+    'conformité réglementaire et audit',
+    'communication et transparence',
+    'performance et optimisation des coûts',
+    'innovation et transformation digitale',
+    'partenariats et écosystème externe',
+  ];
+
+  // Sélectionner aléatoirement des angles pour cette génération
+  const shuffledAngles = recommendationAngles.sort(() => Math.random() - 0.5);
+  const selectedAngles = shuffledAngles.slice(0, 3);
+  const variationSeed = `REC-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+
   const systemPrompt = `Tu es un expert en gouvernance IT, COBIT 2019 et transformation digitale.
 Tu dois générer des recommandations personnalisées et actionnables pour améliorer la maturité IT d'une organisation.
 
@@ -73,6 +92,11 @@ IMPORTANT:
 - Propose des actions concrètes avec des délais réalistes
 - Identifie des quick wins (gains rapides)
 - Priorise selon l'impact et l'effort
+- DIVERSITÉ OBLIGATOIRE: Chaque génération doit produire des recommandations UNIQUES et DIFFÉRENTES.
+  Varie les approches, les méthodologies suggérées et les exemples concrets.
+  Pour cette génération, oriente-toi sur: ${selectedAngles.join(', ')}.
+  Propose des actions que l'on ne retrouve pas dans les guides standards.
+  Référence de variation: ${variationSeed}
 
 Réponds UNIQUEMENT avec un JSON valide au format suivant:
 {
@@ -98,7 +122,7 @@ Réponds UNIQUEMENT avec un JSON valide au format suivant:
   "maturityAnalysis": "Analyse du niveau de maturité global et positionnement"
 }`;
 
-  const userPrompt = `Génère des recommandations pour:
+  const userPrompt = `Génère des recommandations ORIGINALES et VARIÉES pour:
 - Organisation: ${organizationContext.name}
 - Secteur: ${organizationContext.sector}
 - Taille: ${organizationContext.employees} employés
@@ -111,7 +135,9 @@ ${sortedDomains.map(d => `- ${d.code} (${d.name}): ${d.score}/5`).join('\n')}
 Domaines prioritaires (score < 3): ${weakDomains.map(d => d.code).join(', ') || 'Aucun'}
 Points forts (score >= 4): ${strongDomains.map(d => d.code).join(', ') || 'Aucun'}
 
-Génère des recommandations détaillées pour les 3 domaines les plus faibles.`;
+Génère des recommandations détaillées pour les 3 domaines les plus faibles.
+Angles à privilégier: ${selectedAngles.join(', ')}.
+Propose des actions concrètes et spécifiques, évite les conseils génériques.`;
 
   const groqApiKey = process.env.GROQ_API_KEY;
   
@@ -129,8 +155,9 @@ Génère des recommandations détaillées pour les 3 domaines les plus faibles.`
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt },
           ],
-          temperature: 0.7,
+          temperature: 0.9,
           max_tokens: 3000,
+          top_p: 0.95,
         }),
       });
 
@@ -207,12 +234,22 @@ function generateFallbackRecommendations(
   };
 
   const quickWinsMap: Record<string, string[]> = {
-    EDM: ['Organiser une réunion mensuelle IT-Direction', 'Créer un tableau de bord de suivi des projets'],
-    APO: ['Documenter les 5 processus IT les plus critiques', 'Faire un inventaire des applications'],
-    BAI: ['Mettre en place des revues de code', 'Créer des templates de documentation projet'],
-    DSS: ['Créer une FAQ pour les demandes fréquentes', 'Mettre en place un canal de communication IT'],
-    MEA: ['Créer un rapport mensuel d\'activité IT', 'Documenter les incidents majeurs'],
+    EDM: ['Organiser une réunion mensuelle IT-Direction', 'Créer un tableau de bord de suivi des projets', 'Définir les rôles et responsabilités IT clés', 'Mettre en place un reporting mensuel IT'],
+    APO: ['Documenter les 5 processus IT les plus critiques', 'Faire un inventaire des applications', 'Lancer une veille technologique trimestrielle', 'Créer un catalogue de services IT'],
+    BAI: ['Mettre en place des revues de code', 'Créer des templates de documentation projet', 'Formaliser un processus de recette', 'Automatiser un déploiement clé'],
+    DSS: ['Créer une FAQ pour les demandes fréquentes', 'Mettre en place un canal de communication IT', 'Définir les SLA critiques', 'Tester les sauvegardes existantes'],
+    MEA: ['Créer un rapport mensuel d\'activité IT', 'Documenter les incidents majeurs', 'Planifier un audit flash', 'Définir 3 KPIs prioritaires'],
   };
+
+  // Mélanger les quick wins pour varier
+  for (const key of Object.keys(quickWinsMap)) {
+    const arr = quickWinsMap[key];
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    quickWinsMap[key] = arr.slice(0, 2);
+  }
 
   const recommendations = sortedDomains.slice(0, 3).map(domain => ({
     domain: domain.code,
